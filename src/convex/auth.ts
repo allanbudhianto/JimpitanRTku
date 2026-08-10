@@ -1,15 +1,20 @@
 // Login is username + password only, handled by the "password" credentials
 // provider below. The reserved admin account (username "admin", password
-// "admin") is bootstrapped on first login, when no admin exists yet. Warga and
-// pengurus are pre-registered by the admin via users.addUser, which stores the
-// same scrypt secret (authAccounts.secret) that authorize() verifies here.
+// "admin") is bootstrapped on first login, when no such account exists yet.
+// Warga and pengurus are pre-registered by the admin via users.addUser, which
+// stores the same scrypt secret (authAccounts.secret) that authorize()
+// verifies here.
 
 import { ConvexCredentials } from "@convex-dev/auth/providers/ConvexCredentials";
-import { convexAuth } from "@convex-dev/auth/server";
+import {
+  convexAuth,
+  createAccount,
+  retrieveAccount,
+} from "@convex-dev/auth/server";
 import { Scrypt } from "lucia";
-import type { MutationCtx } from "./_generated/server";
 
 const ADMIN_USERNAME = "admin";
+const PROVIDER_ID = "password";
 
 function normalizeUsername(raw: string) {
   return raw.trim().toLowerCase();
@@ -18,60 +23,55 @@ function normalizeUsername(raw: string) {
 export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
   providers: [
     ConvexCredentials({
-      id: "password",
-      authorize: async (credentials, rawCtx) => {
-        // The framework's sign-in ctx exposes direct db access (the built-in
-        // credentials helpers write to authAccounts the same way); its declared
-        // type is generic, so use the generated MutationCtx.
-        const ctx = rawCtx as unknown as MutationCtx;
-
+      id: PROVIDER_ID,
+      // The framework hashes/verifies account secrets with these functions.
+      crypto: {
+        hashSecret: (secret) => new Scrypt().hash(secret),
+        verifySecret: (secret, hash) => new Scrypt().verify(hash, secret),
+      },
+      authorize: async (credentials, ctx) => {
         const username = normalizeUsername(String(credentials.username ?? ""));
         const password = String(credentials.password ?? "");
         if (!username || !password) {
           throw new Error("Username dan password wajib diisi.");
         }
 
-        const account = await ctx.db
-          .query("authAccounts")
-          .withIndex("providerAndAccountId", (q) =>
-            q.eq("provider", "password").eq("providerAccountId", username),
-          )
-          .first();
+        try {
+          // Looks up the account by (provider, username) and verifies the
+          // password. Throws with a framework error code on failure.
+          const { user } = await retrieveAccount(ctx, {
+            provider: PROVIDER_ID,
+            account: { id: username, secret: password },
+          });
+          return { userId: user._id };
+        } catch (err) {
+          const code = err instanceof Error ? err.message : "";
 
-        // Bootstrap: create the reserved admin account (admin / admin) once,
-        // only while no admin exists yet.
-        if (account === null) {
-          if (username === ADMIN_USERNAME && password === ADMIN_USERNAME) {
-            const admins = await ctx.db
-              .query("users")
-              .filter((q) => q.eq(q.field("role"), "admin"))
-              .collect();
-            if (admins.length === 0) {
-              const userId = await ctx.db.insert("users", {
-                username,
-                name: "Admin RT",
-                role: "admin",
+          // Bootstrap: create the reserved admin account (admin / admin) once.
+          if (code === "InvalidAccountId") {
+            if (username === ADMIN_USERNAME && password === ADMIN_USERNAME) {
+              const { user } = await createAccount(ctx, {
+                provider: PROVIDER_ID,
+                account: { id: username, secret: password },
+                profile: {
+                  username,
+                  name: "Admin RT",
+                  role: "admin",
+                },
               });
-              const secret = await new Scrypt().hash(password);
-              await ctx.db.insert("authAccounts", {
-                userId,
-                provider: "password",
-                providerAccountId: username,
-                secret,
-              });
-              return { userId };
+              return { userId: user._id };
             }
+            throw new Error("Username tidak terdaftar. Hubungi admin RT.");
           }
-          throw new Error("Username tidak terdaftar. Hubungi admin RT.");
+
+          if (code === "TooManyFailedAttempts") {
+            throw new Error(
+              "Terlalu banyak percobaan gagal. Coba lagi beberapa saat lagi.",
+            );
+          }
+
+          throw new Error("Username atau password salah.");
         }
-
-        const user = await ctx.db.get(account.userId);
-        if (!user) throw new Error("Akun tidak ditemukan.");
-        if (!account.secret) throw new Error("Akun tidak valid.");
-        const valid = await new Scrypt().verify(account.secret, password);
-        if (!valid) throw new Error("Username atau password salah.");
-
-        return { userId: account.userId };
       },
     }),
   ],
