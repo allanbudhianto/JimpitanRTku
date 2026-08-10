@@ -83,6 +83,7 @@ import {
   Pencil,
   Plus,
   QrCode,
+  Search,
   Receipt,
   Settings2,
   Trash2,
@@ -1649,6 +1650,7 @@ export default function Dashboard() {
     saldoBefore: number;
   } | null>(null);
   const [filter, setFilter] = useState<"semua" | "lunas" | "belum">("semua");
+  const [searchQuery, setSearchQuery] = useState("");
 
   const role = user?.role ?? null;
   const isAdmin = role === ROLES.ADMIN;
@@ -1695,8 +1697,14 @@ export default function Dashboard() {
     label: monthShortLabel(s.month),
     target: series?.targetPerMonth ?? 0,
   }));
+  const lowerQuery = searchQuery.toLowerCase().trim();
   const visibleRows = (overview?.rows ?? []).filter(
-    (r) => filter === "semua" || r.status === filter,
+    (r) =>
+      (filter === "semua" || r.status === filter) &&
+      (!lowerQuery ||
+        r.warga.name.toLowerCase().includes(lowerQuery) ||
+        (r.warga.noRumah || "").toLowerCase().includes(lowerQuery) ||
+        (r.warga.alamat || "").toLowerCase().includes(lowerQuery)),
   );
 
   return (
@@ -2231,6 +2239,15 @@ export default function Dashboard() {
                   </Button>
                 );
               })}
+            </div>
+            <div className="relative w-full sm:w-56">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Cari warga…"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="h-8 pl-8 text-sm"
+              />
             </div>
           </CardHeader>
           <CardContent className="p-0">
