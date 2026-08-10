@@ -1,6 +1,7 @@
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { mutation, query, QueryCtx } from "./_generated/server";
 import { v } from "convex/values";
+import { Scrypt } from "lucia";
 import { ROLES, type Role } from "./schema";
 
 /**
@@ -34,31 +35,11 @@ export const getCurrentUser = async (ctx: QueryCtx) => {
   return await ctx.db.get(userId);
 };
 
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const USERNAME_RE = /^[a-z0-9._-]{3,30}$/;
 
-/**
- * Bootstrap: the very first account that signs in becomes admin, so the RT
- * can start adding warga & pengurus. Returns the assigned role, or null when
- * the account has no role yet (admin already exists -> unregistered).
- */
-export const ensureRole = mutation({
-  args: {},
-  handler: async (ctx) => {
-    const user = await getCurrentUser(ctx);
-    if (!user) return null;
-    if (user.role) return user.role;
-
-    const admins = await ctx.db
-      .query("users")
-      .filter((q) => q.eq(q.field("role"), ROLES.ADMIN))
-      .collect();
-    if (admins.length === 0) {
-      await ctx.db.patch(user._id, { role: ROLES.ADMIN });
-      return ROLES.ADMIN;
-    }
-    return null;
-  },
-});
+function normalizeUsername(raw: string) {
+  return raw.trim().toLowerCase();
+}
 
 /** Let any signed-in user set their own display name. */
 export const updateOwnName = mutation({
@@ -85,11 +66,11 @@ export const listUsers = query({
     }
     const users = await ctx.db.query("users").collect();
     return users
-      .filter((u) => Boolean(u.role && u.email))
+      .filter((u) => Boolean(u.role && u.username))
       .map((u) => ({
         _id: u._id,
         name: u.name ?? "",
-        email: u.email ?? "",
+        username: u.username ?? "",
         role: u.role as Role,
         alamat: u.alamat ?? "",
         noRumah: u.noRumah ?? "",
@@ -100,39 +81,55 @@ export const listUsers = query({
 });
 
 /**
- * Admin adds a warga or pengurus. They sign in later with the same email via
- * email OTP; Convex Auth matches the pre-created account by email.
+ * Admin adds a warga or pengurus with a username + initial password.
+ * Creates both the user document and the auth account (scrypt-hashed secret),
+ * so they can log in with the same username and password.
  */
 export const addUser = mutation({
   args: {
     name: v.string(),
-    email: v.string(),
+    username: v.string(),
+    password: v.string(),
     role: v.union(v.literal(ROLES.WARGA), v.literal(ROLES.PENGGURUS)),
     alamat: v.optional(v.string()),
     noRumah: v.optional(v.string()),
   },
-  handler: async (ctx, { name, email, role, alamat, noRumah }) => {
+  handler: async (ctx, { name, username, password, role, alamat, noRumah }) => {
     const admin = await getCurrentUser(ctx);
     if (!admin || admin.role !== ROLES.ADMIN) {
       throw new Error("Hanya admin yang dapat menambahkan warga/pengurus.");
     }
-    const cleanEmail = email.trim().toLowerCase();
+    const cleanUsername = normalizeUsername(username);
     const cleanName = name.trim();
-    if (!EMAIL_RE.test(cleanEmail)) throw new Error("Format email tidak valid.");
+    if (!USERNAME_RE.test(cleanUsername)) {
+      throw new Error(
+        "Username harus 3–30 karakter (huruf kecil, angka, titik, strip, underscore).",
+      );
+    }
+    if (password.length < 4) throw new Error("Password minimal 4 karakter.");
     if (cleanName.length < 2) throw new Error("Nama terlalu pendek.");
 
     const existing = await ctx.db
       .query("users")
-      .withIndex("email", (q) => q.eq("email", cleanEmail))
+      .withIndex("username", (q) => q.eq("username", cleanUsername))
       .first();
-    if (existing) throw new Error("Email sudah terdaftar.");
+    if (existing) throw new Error("Username sudah terdaftar.");
 
-    return await ctx.db.insert("users", {
-      email: cleanEmail,
+    const userId = await ctx.db.insert("users", {
+      username: cleanUsername,
       name: cleanName,
       role,
       alamat: role === ROLES.WARGA ? alamat?.trim() || undefined : undefined,
       noRumah: role === ROLES.WARGA ? noRumah?.trim() || undefined : undefined,
     });
+
+    const secret = await new Scrypt().hash(password);
+    await ctx.db.insert("authAccounts", {
+      userId,
+      provider: "password",
+      providerAccountId: cleanUsername,
+      secret,
+    });
+    return userId;
   },
 });

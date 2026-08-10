@@ -224,7 +224,8 @@ function AddUserDialog({
 }) {
   const addUser = useMutation(api.users.addUser);
   const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
   const [role, setRole] = useState<"warga" | "pengurus">(ROLES.WARGA);
   const [alamat, setAlamat] = useState("");
   const [noRumah, setNoRumah] = useState("");
@@ -234,7 +235,8 @@ function AddUserDialog({
   useEffect(() => {
     if (open) {
       setName("");
-      setEmail("");
+      setUsername("");
+      setPassword("");
       setRole(ROLES.WARGA);
       setAlamat("");
       setNoRumah("");
@@ -249,7 +251,8 @@ function AddUserDialog({
     try {
       await addUser({
         name,
-        email,
+        username,
+        password,
         role,
         alamat: alamat.trim() || undefined,
         noRumah: noRumah.trim() || undefined,
@@ -273,7 +276,7 @@ function AddUserDialog({
         <DialogHeader>
           <DialogTitle>Tambah warga / pengurus</DialogTitle>
           <DialogDescription>
-            Mereka dapat masuk dengan email yang sama.
+            Mereka login dengan username & password yang Anda buat.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
@@ -289,16 +292,36 @@ function AddUserDialog({
             />
           </div>
           <div className="grid gap-2">
-            <Label htmlFor="au-email">Email</Label>
+            <Label htmlFor="au-username">Username</Label>
             <Input
-              id="au-email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="nama@email.com"
+              id="au-username"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              placeholder="cth: budi01"
+              autoCapitalize="none"
+              spellCheck={false}
               required
               disabled={submitting}
             />
+            <p className="text-xs text-muted-foreground">
+              3–30 karakter: huruf kecil, angka, titik, strip, underscore.
+            </p>
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="au-password">Password awal</Label>
+            <Input
+              id="au-password"
+              type="text"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="minimal 4 karakter"
+              autoComplete="off"
+              required
+              disabled={submitting}
+            />
+            <p className="text-xs text-muted-foreground">
+              Digunakan saat mereka login. Beri tahu mereka password ini.
+            </p>
           </div>
           <div className="grid gap-2">
             <Label>Peran</Label>
@@ -584,13 +607,8 @@ function StatCard({
 export default function Dashboard() {
   const { user, isLoading, signOut } = useAuth();
   const navigate = useNavigate();
-  const ensureRole = useMutation(api.users.ensureRole);
 
   const [month, setMonth] = useState(currentMonthKey);
-  const [bootstrap, setBootstrap] = useState<{
-    done: boolean;
-    granted: boolean;
-  }>({ done: false, granted: false });
   const [nameDialogOpen, setNameDialogOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [payTarget, setPayTarget] = useState<{
@@ -601,15 +619,6 @@ export default function Dashboard() {
   const role = user?.role ?? null;
   const isAdmin = role === ROLES.ADMIN;
   const canRecord = isAdmin || role === ROLES.PENGGURUS;
-
-  // Bootstrap: the very first sign-in becomes admin (see users.ensureRole).
-  useEffect(() => {
-    if (!isLoading && user && !user.role && !bootstrap.done) {
-      ensureRole()
-        .then((role) => setBootstrap({ done: true, granted: role !== null }))
-        .catch(() => setBootstrap({ done: true, granted: false }));
-    }
-  }, [isLoading, user, ensureRole, bootstrap.done]);
 
   // Prompt once for the display name (used in payment records).
   useEffect(() => {
@@ -631,10 +640,6 @@ export default function Dashboard() {
   };
 
   if (isLoading || !user) return <FullScreenSpinner />;
-  // Wait for the role to appear reactively after bootstrap grants it.
-  if (!user.role && (!bootstrap.done || bootstrap.granted)) {
-    return <FullScreenSpinner />;
-  }
   if (!user.role) return <UnregisteredCard onSignOut={handleSignOut} />;
 
   const paidPct =
@@ -682,7 +687,7 @@ export default function Dashboard() {
                 <DropdownMenuLabel>
                   <p className="truncate text-sm font-medium">{user.name}</p>
                   <p className="truncate text-xs font-normal text-muted-foreground">
-                    {user.email ?? "Akun tamu"}
+                    {user.username ? `@${user.username}` : "Akun tamu"}
                   </p>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
@@ -965,7 +970,7 @@ export default function Dashboard() {
                 <TableHeader>
                   <TableRow className="hover:bg-transparent">
                     <TableHead className="pl-4 sm:pl-6">Nama</TableHead>
-                    <TableHead>Email</TableHead>
+                    <TableHead>Username</TableHead>
                     <TableHead className="hidden sm:table-cell">Rumah</TableHead>
                     <TableHead className="text-right">Peran</TableHead>
                   </TableRow>
@@ -982,7 +987,7 @@ export default function Dashboard() {
                         )}
                       </TableCell>
                       <TableCell className="text-muted-foreground">
-                        {u.email}
+                        @{u.username}
                       </TableCell>
                       <TableCell className="hidden text-muted-foreground sm:table-cell">
                         {u.role === ROLES.WARGA

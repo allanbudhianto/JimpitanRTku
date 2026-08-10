@@ -303,8 +303,11 @@ export default function Landing() {
                   Siap mencatat jimpitan dengan rapi?
                 </h2>
                 <p className="max-w-md text-sm text-muted-foreground">
-                  Mulai gratis — akun pertama yang masuk otomatis menjadi admin
-                  RT.
+                  Mulai gratis — login dengan username{" "}
+                  <span className="font-mono font-semibold text-foreground">admin</span>{" "}
+                  dan password{" "}
+                  <span className="font-mono font-semibold text-foreground">admin</span>{" "}
+                  untuk menjadi admin RT.
                 </p>
                 <Button asChild size="lg">
                   <Link to="/auth">
