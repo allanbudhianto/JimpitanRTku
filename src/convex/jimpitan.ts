@@ -1,13 +1,25 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
-import { ROLES } from "./schema";
+import { JIMPITAN_PER_BULAN, ROLES } from "./schema";
 import { getCurrentUser } from "./users";
 
 const MONTH_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
 
+/** "YYYY-MM" → total months since year 0 (chronological ordering/comparison). */
+function monthIndex(month: string) {
+  const [y, m] = month.split("-").map(Number);
+  return y * 12 + (m - 1);
+}
+
 /**
  * Overview for one month: warga list joined with their payment record, plus
  * totals. Visible to every signed-in user with a role (admin, pengurus, warga).
+ *
+ * Iuran wajib tiap warga adalah JIMPITAN_PER_BULAN per bulan, terhitung mulai
+ * dari bulan pertama warga tersebut tercatat membayar. Kelebihan pembayaran
+ * (saldo) otomatis diakumulasikan untuk menutupi iuran bulan-bulan berikutnya:
+ * seorang warga berstatus "lunas" jika saldo + pembayaran bulan ini sudah
+ * menutupi iuran bulan ini.
  */
 export const getOverview = query({
   args: { month: v.string() },
@@ -16,16 +28,15 @@ export const getOverview = query({
     if (!user || !user.role) return null;
     if (!MONTH_RE.test(month)) throw new Error("Bulan tidak valid.");
 
-    const [wargaList, payments] = await Promise.all([
+    const [wargaList, allPayments] = await Promise.all([
       ctx.db
         .query("users")
         .filter((q) => q.eq(q.field("role"), ROLES.WARGA))
         .collect(),
-      ctx.db
-        .query("jimpitan")
-        .withIndex("by_month", (q) => q.eq("month", month))
-        .collect(),
+      ctx.db.query("jimpitan").collect(),
     ]);
+
+    const payments = allPayments.filter((p) => p.month === month);
 
     const warga = wargaList
       .map((w) => ({
@@ -35,6 +46,15 @@ export const getOverview = query({
         noRumah: w.noRumah ?? "",
       }))
       .sort((a, b) => a.name.localeCompare(b.name, "id"));
+
+    // Group every payment (all months) per warga to compute carried credit.
+    type JimpitanDoc = (typeof allPayments)[number];
+    const historyByWarga = new Map<string, JimpitanDoc[]>(
+      wargaList.map((w) => [w._id, []]),
+    );
+    for (const p of allPayments) {
+      historyByWarga.get(p.wargaId)?.push(p);
+    }
 
     const paymentByWarga = new Map(payments.map((p) => [p.wargaId, p]));
 
@@ -47,10 +67,37 @@ export const getOverview = query({
         .map((r) => [r._id, r.name ?? "Pengurus"]),
     );
 
+    const targetIdx = monthIndex(month);
     const rows = warga.map((w) => {
+      const history = historyByWarga.get(w._id) ?? [];
       const payment = paymentByWarga.get(w._id) ?? null;
+
+      // Obligation starts from the warga's first recorded payment month.
+      let startIdx: number | null = null;
+      let paidBefore = 0;
+      for (const p of history) {
+        const idx = monthIndex(p.month);
+        if (startIdx === null || idx < startIdx) startIdx = idx;
+        if (p.month < month) paidBefore += p.nominal;
+      }
+
+      // Credit carried into this month: what they paid before minus the
+      // obligations already consumed in the months up to (not including) now.
+      const saldoBefore =
+        startIdx === null
+          ? 0
+          : paidBefore - Math.max(0, targetIdx - startIdx) * JIMPITAN_PER_BULAN;
+
+      const paidAt = payment?.nominal ?? 0;
+      const lunas =
+        startIdx === null || targetIdx < startIdx
+          ? paidAt > 0
+          : saldoBefore + paidAt >= JIMPITAN_PER_BULAN;
+
       return {
         warga: w,
+        saldoBefore,
+        status: lunas ? ("lunas" as const) : ("belum" as const),
         payment: payment
           ? {
               _id: payment._id,
@@ -64,12 +111,14 @@ export const getOverview = query({
     });
 
     const total = payments.reduce((sum, p) => sum + p.nominal, 0);
+    const paidCount = rows.filter((r) => r.status === "lunas").length;
     return {
       month,
       totalWarga: warga.length,
-      paidCount: payments.length,
-      unpaidCount: warga.length - payments.length,
+      paidCount,
+      unpaidCount: warga.length - paidCount,
       total,
+      target: warga.length * JIMPITAN_PER_BULAN,
       rows,
     };
   },

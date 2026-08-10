@@ -1,5 +1,5 @@
 import { api } from "@/convex/_generated/api";
-import { ROLES, type Role } from "@/convex/schema";
+import { JIMPITAN_PER_BULAN, ROLES, type Role } from "@/convex/schema";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -154,7 +154,18 @@ type PaymentInfo = {
   recordedAt: number;
 };
 
-type OverviewRow = { warga: Warga; payment: PaymentInfo | null };
+type OverviewRow = {
+  warga: Warga;
+  payment: PaymentInfo | null;
+  /** Credit carried into this month (kelebihan dari bulan sebelumnya). */
+  saldoBefore: number;
+  status: "lunas" | "belum";
+};
+
+/** Kelebihan yang dibawa ke bulan berikutnya (0 jika tidak ada). */
+function carryToNext(row: OverviewRow) {
+  return row.saldoBefore + (row.payment?.nominal ?? 0) - JIMPITAN_PER_BULAN;
+}
 
 type ManagedUser = {
   _id: Id<"users">;
@@ -770,26 +781,37 @@ function PayDialog({
   warga,
   month,
   payment,
+  saldoBefore,
   onOpenChange,
 }: {
   warga: Warga;
   month: string;
   payment: PaymentInfo | null;
+  saldoBefore: number;
   onOpenChange: (open: boolean) => void;
 }) {
   const recordPayment = useMutation(api.jimpitan.recordPayment);
   const deletePayment = useMutation(api.jimpitan.deletePayment);
-  const [nominal, setNominal] = useState(payment ? String(payment.nominal) : "");
+  const [nominal, setNominal] = useState(
+    payment ? String(payment.nominal) : String(JIMPITAN_PER_BULAN),
+  );
   const [note, setNote] = useState(payment?.note ?? "");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    setNominal(payment ? String(payment.nominal) : "");
+    setNominal(
+      payment ? String(payment.nominal) : String(JIMPITAN_PER_BULAN),
+    );
     setNote(payment?.note ?? "");
     setError(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [warga._id, month]);
+
+  const parsedNominal = Number(nominal.replace(/\D/g, ""));
+  const surplus = Number.isFinite(parsedNominal) && parsedNominal > 0
+    ? saldoBefore + parsedNominal - JIMPITAN_PER_BULAN
+    : null;
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -852,12 +874,41 @@ function PayDialog({
             <Input
               id="pay-nominal"
               inputMode="numeric"
-              placeholder="cth: 5000"
+              placeholder="cth: 15000"
               value={nominal}
               onChange={(e) => setNominal(e.target.value)}
               autoFocus
               disabled={submitting}
             />
+            <div className="rounded-xl border bg-muted/40 p-3 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">
+                  Iuran wajib bulan ini
+                </span>
+                <span className="font-semibold tabular-nums">
+                  {formatRupiah(JIMPITAN_PER_BULAN)}
+                </span>
+              </div>
+              <div className="mt-1 flex items-center justify-between">
+                <span className="text-muted-foreground">Saldo dibawa</span>
+                <span className="font-semibold tabular-nums">
+                  {saldoBefore > 0
+                    ? `+${formatRupiah(saldoBefore)}`
+                    : formatRupiah(0)}
+                </span>
+              </div>
+              {surplus !== null && surplus > 0 && (
+                <p className="mt-2 font-medium text-emerald-600 dark:text-emerald-400">
+                  Kelebihan {formatRupiah(surplus)} akan diakumulasikan ke
+                  bulan berikutnya.
+                </p>
+              )}
+              {surplus !== null && surplus < 0 && (
+                <p className="mt-2 font-medium text-amber-600 dark:text-amber-400">
+                  Masih kurang {formatRupiah(-surplus)} untuk lunas bulan ini.
+                </p>
+              )}
+            </div>
           </div>
           <div className="grid gap-2">
             <Label htmlFor="pay-note">Catatan (opsional)</Label>
@@ -1003,6 +1054,7 @@ export default function Dashboard() {
   const [payTarget, setPayTarget] = useState<{
     warga: Warga;
     payment: PaymentInfo | null;
+    saldoBefore: number;
   } | null>(null);
 
   const role = user?.role ?? null;
@@ -1170,6 +1222,16 @@ export default function Dashboard() {
               icon={<Wallet className="size-4" />}
               label="Terkumpul bulan ini"
               value={formatRupiah(overview.total)}
+              sub={
+                overview.target > 0
+                  ? `dari target ${formatRupiah(overview.target)}`
+                  : undefined
+              }
+              progress={
+                overview.target > 0
+                  ? (overview.total / overview.target) * 100
+                  : 0
+              }
             />
             <StatCard
               icon={<Users className="size-4" />}
@@ -1201,9 +1263,10 @@ export default function Dashboard() {
             <div>
               <CardTitle className="text-base">Rincian jimpitan</CardTitle>
               <CardDescription className="mt-1">
-                {monthLabel(month)} ·{" "}
+                {monthLabel(month)} · iuran {formatRupiah(JIMPITAN_PER_BULAN)}
+                /bulan ·{" "}
                 {overview
-                  ? `${overview.paidCount} dari ${overview.totalWarga} warga membayar`
+                  ? `${overview.paidCount} dari ${overview.totalWarga} warga lunas`
                   : "Memuat data…"}
               </CardDescription>
             </div>
@@ -1236,6 +1299,9 @@ export default function Dashboard() {
                     <TableHead>Warga</TableHead>
                     <TableHead className="hidden sm:table-cell">Rumah</TableHead>
                     <TableHead className="text-right">Nominal</TableHead>
+                    <TableHead className="hidden text-right sm:table-cell">
+                      Saldo
+                    </TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead className="hidden md:table-cell">
                       Dicatat oleh
@@ -1269,16 +1335,42 @@ export default function Dashboard() {
                         {row.warga.noRumah || row.warga.alamat || "—"}
                       </TableCell>
                       <TableCell className="text-right font-semibold tabular-nums">
-                        {row.payment ? formatRupiah(row.payment.nominal) : "—"}
+                        {row.payment ? (
+                          <div>
+                            <p>{formatRupiah(row.payment.nominal)}</p>
+                            {carryToNext(row) > 0 && (
+                              <p
+                                className="text-xs font-normal text-emerald-600 dark:text-emerald-400"
+                                title="Kelebihan yang dibawa ke bulan berikutnya"
+                              >
+                                +{formatRupiah(carryToNext(row))} ke depan
+                              </p>
+                            )}
+                          </div>
+                        ) : (
+                          "—"
+                        )}
+                      </TableCell>
+                      <TableCell
+                        className="hidden text-right tabular-nums sm:table-cell"
+                        title="Kredit dari bulan sebelumnya"
+                      >
+                        {row.saldoBefore > 0 ? (
+                          <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                            +{formatRupiah(row.saldoBefore)}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
                       </TableCell>
                       <TableCell>
-                        {row.payment ? (
+                        {row.status === "lunas" ? (
                           <Badge
                             variant="outline"
                             className="border-transparent bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
                           >
                             <CheckCircle2 className="size-3" />
-                            Lunas
+                            {row.payment ? "Lunas" : "Lunas · saldo"}
                           </Badge>
                         ) : (
                           <Badge
@@ -1313,6 +1405,7 @@ export default function Dashboard() {
                                 setPayTarget({
                                   warga: row.warga,
                                   payment: row.payment,
+                                  saldoBefore: row.saldoBefore,
                                 })
                               }
                             >
@@ -1499,6 +1592,7 @@ export default function Dashboard() {
           warga={payTarget.warga}
           month={month}
           payment={payTarget.payment}
+          saldoBefore={payTarget.saldoBefore}
           onOpenChange={(open) => {
             if (!open) setPayTarget(null);
           }}

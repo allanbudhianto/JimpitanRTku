@@ -20,6 +20,13 @@ export const roleValidator = v.union(
 );
 export type Role = Infer<typeof roleValidator>;
 
+/**
+ * Iuran wajib setiap warga per bulan (Rp).
+ * Kelebihan pembayaran otomatis diakumulasikan untuk menutupi iuran
+ * bulan-bulan berikutnya (lihat jimpitan.getOverview).
+ */
+export const JIMPITAN_PER_BULAN = 15000;
+
 const schema = defineSchema(
   {
     // default auth tables using convex auth.
