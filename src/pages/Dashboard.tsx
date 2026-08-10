@@ -54,6 +54,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Table,
   TableBody,
@@ -80,6 +82,8 @@ import {
   LogOut,
   Pencil,
   Plus,
+  QrCode,
+  Settings2,
   Trash2,
   UserRoundPlus,
   Users,
@@ -93,6 +97,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import QRCode from "react-qr-code";
 import type { Id } from "@/convex/_generated/dataModel";
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { useNavigate } from "react-router";
@@ -837,6 +842,130 @@ function ChangePasswordDialog({
   );
 }
 
+function QrisDialog({
+  qris,
+  open,
+  onOpenChange,
+}: {
+  qris: {
+    qrisPayload: string | null;
+    qrisMerchantName: string | null;
+    qrisActive: boolean;
+  };
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const updateQris = useMutation(api.settings.updateQris);
+  const [payload, setPayload] = useState(qris.qrisPayload ?? "");
+  const [merchantName, setMerchantName] = useState(
+    qris.qrisMerchantName ?? "",
+  );
+  const [active, setActive] = useState(qris.qrisActive);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (open) {
+      setPayload(qris.qrisPayload ?? "");
+      setMerchantName(qris.qrisMerchantName ?? "");
+      setActive(qris.qrisActive);
+      setError(null);
+    }
+  }, [open, qris]);
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    setError(null);
+    try {
+      await updateQris({
+        qrisPayload: payload.trim() || undefined,
+        qrisMerchantName: merchantName.trim() || undefined,
+        qrisActive: active,
+      });
+      toast.success("Pengaturan QRIS disimpan.");
+      onOpenChange(false);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Gagal menyimpan pengaturan.",
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Atur pembayaran QRIS</DialogTitle>
+          <DialogDescription>
+            Tempel kode QRIS dari aplikasi bank/e-wallet Anda agar warga bisa
+            membayar dengan scan.
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <div className="grid gap-2">
+            <Label htmlFor="qr-merchant">Nama merchant / atas nama</Label>
+            <Input
+              id="qr-merchant"
+              value={merchantName}
+              onChange={(e) => setMerchantName(e.target.value)}
+              placeholder="cth: Jimpitan RT 02"
+              disabled={submitting}
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="qr-payload">String QRIS</Label>
+            <Textarea
+              id="qr-payload"
+              value={payload}
+              onChange={(e) => setPayload(e.target.value)}
+              placeholder="cth: 00020101021126670014COM.GO-JEK..."
+              rows={4}
+              disabled={submitting}
+            />
+            <p className="text-xs text-muted-foreground">
+              Kode QRIS dimulai dengan "000201". Salin dari aplikasi bank /
+              e-wallet Anda.
+            </p>
+          </div>
+          <div className="flex items-center justify-between rounded-xl border px-3 py-2.5">
+            <div>
+              <p className="text-sm font-medium">
+                Aktifkan pembayaran QRIS
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Tampilkan kode QR untuk warga.
+              </p>
+            </div>
+            <Switch
+              checked={active}
+              onCheckedChange={setActive}
+              disabled={submitting}
+            />
+          </div>
+          {error && <p className="text-sm text-destructive">{error}</p>}
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => onOpenChange(false)}
+              disabled={submitting}
+            >
+              Batal
+            </Button>
+            <Button type="submit" disabled={submitting}>
+              {submitting && <Loader2 className="animate-spin" />}
+              Simpan
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function DeleteUserDialog({
   user,
   open,
@@ -1232,6 +1361,7 @@ export default function Dashboard() {
   const [pwdTarget, setPwdTarget] = useState<ManagedUser | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ManagedUser | null>(null);
   const [changePwdOpen, setChangePwdOpen] = useState(false);
+  const [qrisOpen, setQrisOpen] = useState(false);
   const [deletePayTarget, setDeletePayTarget] = useState<{
     warga: Warga;
     payment: PaymentInfo;
@@ -1259,6 +1389,7 @@ export default function Dashboard() {
     api.jimpitan.getMonthlySeries,
     role ? undefined : "skip",
   );
+  const qris = useQuery(api.settings.getQris, role ? undefined : "skip");
   const monthsWithData = useQuery(
     api.jimpitan.getMonthsWithData,
     role ? undefined : "skip",
@@ -1505,6 +1636,86 @@ export default function Dashboard() {
               }
             />
           </div>
+        )}
+
+        {/* Pembayaran QRIS */}
+        <Card className="mt-6 gap-0 overflow-hidden py-0 shadow-sm">
+          <CardHeader className="flex-row items-center justify-between gap-4 border-b px-4 py-4 sm:px-6">
+            <div>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <QrCode className="size-4 text-primary" />
+                Pembayaran QRIS
+              </CardTitle>
+              <CardDescription className="mt-1">
+                Bayar iuran langsung dari aplikasi QRIS apa pun.
+              </CardDescription>
+            </div>
+            {isAdmin && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setQrisOpen(true)}
+              >
+                <Settings2 className="size-4" />
+                Atur QRIS
+              </Button>
+            )}
+          </CardHeader>
+          <CardContent className="px-4 py-5 sm:px-6">
+            {!qris ? (
+              <div className="flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground">
+                <Loader2 className="size-4 animate-spin" />
+                Memuat…
+              </div>
+            ) : qris.qrisActive && qris.qrisPayload ? (
+              <div className="flex flex-col items-center gap-6 sm:flex-row sm:items-start">
+                <div className="shrink-0 rounded-2xl border bg-white p-3 shadow-sm">
+                  <QRCode
+                    value={qris.qrisPayload}
+                    size={150}
+                    style={{ height: "auto", width: "100%", maxWidth: 150 }}
+                  />
+                </div>
+                <div className="flex-1 text-center sm:text-left">
+                  <p className="text-base font-bold">
+                    {qris.qrisMerchantName || "Jimpitan RT"}
+                  </p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Iuran {formatRupiah(JIMPITAN_PER_BULAN)}/bulan per warga.
+                    Kelebihan otomatis diakumulasikan ke bulan berikutnya.
+                  </p>
+                  <ol className="mt-3 space-y-1.5 text-xs text-muted-foreground">
+                    <li className="flex gap-2">
+                      <span className="font-semibold text-foreground">1</span>
+                      Buka aplikasi QRIS (GoPay, OVO, DANA, m-Banking, dll).
+                    </li>
+                    <li className="flex gap-2">
+                      <span className="font-semibold text-foreground">2</span>
+                      Pilih "Bayar/Scan" lalu arahkan ke kode QR di samping.
+                    </li>
+                    <li className="flex gap-2">
+                      <span className="font-semibold text-foreground">3</span>
+                      Masukkan nominal, konfirmasi, dan kirim bukti ke pengurus.
+                    </li>
+                  </ol>
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center gap-2 py-8 text-center">
+                <QrCode className="size-8 text-muted-foreground" />
+                <p className="text-sm font-medium">QRIS belum diatur</p>
+                <p className="text-xs text-muted-foreground">
+                  {isAdmin
+                    ? 'Klik "Atur QRIS" untuk memasang kode pembayaran RT Anda.'
+                    : "Silakan hubungi admin RT untuk memasang kode QRIS."}
+                </p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {qris && (
+          <QrisDialog qris={qris} open={qrisOpen} onOpenChange={setQrisOpen} />
         )}
 
         {/* Grafik per bulan */}

@@ -59,6 +59,14 @@ const schema = defineSchema(
     })
       .index("by_month", ["month"])
       .index("by_warga", ["wargaId", "month"]),
+
+    // App settings (singleton documents keyed by `key`), e.g. QRIS payment.
+    settings: defineTable({
+      key: v.string(), // "qris"
+      qrisPayload: v.optional(v.string()), // QRIS merchant string (mulai "000201")
+      qrisMerchantName: v.optional(v.string()), // merchant / atas nama
+      qrisActive: v.optional(v.boolean()),
+    }).index("key", ["key"]),
   },
   {
     schemaValidation: false,
