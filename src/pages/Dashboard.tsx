@@ -717,6 +717,126 @@ function PasswordDialog({
   );
 }
 
+function ChangePasswordDialog({
+  open,
+  onOpenChange,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const changeOwnPassword = useMutation(api.users.changeOwnPassword);
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (open) {
+      setCurrentPassword("");
+      setPassword("");
+      setConfirm("");
+      setError(null);
+    }
+  }, [open]);
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!currentPassword) {
+      setError("Password lama wajib diisi.");
+      return;
+    }
+    if (password.length < 4) {
+      setError("Password baru minimal 4 karakter.");
+      return;
+    }
+    if (password !== confirm) {
+      setError("Konfirmasi password tidak cocok.");
+      return;
+    }
+    setSubmitting(true);
+    setError(null);
+    try {
+      await changeOwnPassword({ currentPassword, newPassword: password });
+      toast.success("Password Anda diperbarui.");
+      onOpenChange(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Gagal mengubah password.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Ubah password saya</DialogTitle>
+          <DialogDescription>
+            Masukkan password lama, lalu tetapkan password baru.
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <div className="grid gap-2">
+            <Label htmlFor="cp-current">Password lama</Label>
+            <Input
+              id="cp-current"
+              type="password"
+              value={currentPassword}
+              onChange={(e) => setCurrentPassword(e.target.value)}
+              autoComplete="current-password"
+              autoFocus
+              required
+              disabled={submitting}
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="cp-password">Password baru</Label>
+            <Input
+              id="cp-password"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="minimal 4 karakter"
+              autoComplete="new-password"
+              required
+              disabled={submitting}
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="cp-confirm">Ulangi password baru</Label>
+            <Input
+              id="cp-confirm"
+              type="password"
+              value={confirm}
+              onChange={(e) => setConfirm(e.target.value)}
+              placeholder="ketik ulang password baru"
+              autoComplete="new-password"
+              required
+              disabled={submitting}
+            />
+          </div>
+          {error && <p className="text-sm text-destructive">{error}</p>}
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => onOpenChange(false)}
+              disabled={submitting}
+            >
+              Batal
+            </Button>
+            <Button type="submit" disabled={submitting}>
+              {submitting && <Loader2 className="animate-spin" />}
+              Simpan
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function DeleteUserDialog({
   user,
   open,
@@ -1111,6 +1231,7 @@ export default function Dashboard() {
   const [editTarget, setEditTarget] = useState<ManagedUser | null>(null);
   const [pwdTarget, setPwdTarget] = useState<ManagedUser | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ManagedUser | null>(null);
+  const [changePwdOpen, setChangePwdOpen] = useState(false);
   const [deletePayTarget, setDeletePayTarget] = useState<{
     warga: Warga;
     payment: PaymentInfo;
@@ -1210,6 +1331,13 @@ export default function Dashboard() {
                   </p>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onClick={() => setChangePwdOpen(true)}
+                  className="cursor-pointer"
+                >
+                  <KeyRound className="size-4" />
+                  Ubah password
+                </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={handleSignOut}
                   className="cursor-pointer text-destructive focus:text-destructive"
@@ -1803,6 +1931,7 @@ export default function Dashboard() {
       </main>
 
       {/* Dialogs */}
+      <ChangePasswordDialog open={changePwdOpen} onOpenChange={setChangePwdOpen} />
       <NameDialog open={nameDialogOpen} onOpenChange={setNameDialogOpen} />
       <AddUserDialog open={addOpen} onOpenChange={setAddOpen} />
       {editTarget && (

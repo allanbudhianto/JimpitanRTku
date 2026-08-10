@@ -81,6 +81,41 @@ export const listUsers = query({
 });
 
 /**
+ * Any signed-in user (warga, pengurus, or admin) changes their own password,
+ * after verifying their current password.
+ */
+export const changeOwnPassword = mutation({
+  args: { currentPassword: v.string(), newPassword: v.string() },
+  handler: async (ctx, { currentPassword, newPassword }) => {
+    const user = await getCurrentUser(ctx);
+    if (!user || !user.role) throw new Error("Harus login.");
+    if (!user.username) throw new Error("Akun tidak memiliki username.");
+    if (!currentPassword) throw new Error("Password lama wajib diisi.");
+    if (newPassword.length < 4) {
+      throw new Error("Password baru minimal 4 karakter.");
+    }
+
+    const account = await ctx.db
+      .query("authAccounts")
+      .withIndex("providerAndAccountId", (q) =>
+        q
+          .eq("provider", "password")
+          .eq("providerAccountId", user.username ?? ""),
+      )
+      .first();
+    if (!account) throw new Error("Akun login tidak ditemukan.");
+    if (!account.secret) throw new Error("Akun login tidak ditemukan.");
+
+    const valid = await new Scrypt().verify(account.secret, currentPassword);
+    if (!valid) throw new Error("Password lama salah.");
+
+    const secret = await new Scrypt().hash(newPassword);
+    await ctx.db.patch(account._id, { secret });
+    return true;
+  },
+});
+
+/**
  * Admin changes the password of any account (admin, pengurus, or warga).
  */
 export const changeUserPassword = mutation({
