@@ -1077,6 +1077,110 @@ function AddExpenseDialog({
   );
 }
 
+function EditExpenseDialog({
+  expense,
+  open,
+  onOpenChange,
+}: {
+  expense: Expense;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const updatePengeluaran = useMutation(api.pengeluaran.updatePengeluaran);
+  const [nominal, setNominal] = useState(String(expense.nominal));
+  const [alasan, setAlasan] = useState(expense.alasan);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (open) {
+      setNominal(String(expense.nominal));
+      setAlasan(expense.alasan);
+      setError(null);
+    }
+  }, [open, expense]);
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    const value = Number(nominal.replace(/\D/g, ""));
+    if (!Number.isFinite(value) || value <= 0) {
+      setError("Masukkan nominal yang valid.");
+      return;
+    }
+    if (alasan.trim().length < 3) {
+      setError("Alasan pengeluaran minimal 3 karakter.");
+      return;
+    }
+    setSubmitting(true);
+    setError(null);
+    try {
+      await updatePengeluaran({ expenseId: expense._id, nominal: value, alasan });
+      toast.success(`Pengeluaran ${formatRupiah(value)} diperbarui.`);
+      onOpenChange(false);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Gagal memperbarui pengeluaran.",
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Ubah pengeluaran</DialogTitle>
+          <DialogDescription>
+            Perbarui nominal dan alasan pengeluaran kas ini.
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <div className="grid gap-2">
+            <Label htmlFor="exe-nominal">Nominal (Rp)</Label>
+            <Input
+              id="exe-nominal"
+              inputMode="numeric"
+              placeholder="cth: 50000"
+              value={nominal}
+              onChange={(e) => setNominal(e.target.value)}
+              autoFocus
+              required
+              disabled={submitting}
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="exe-alasan">Alasan pengeluaran</Label>
+            <Input
+              id="exe-alasan"
+              placeholder="cth: belanja konsumsi rapat warga"
+              value={alasan}
+              onChange={(e) => setAlasan(e.target.value)}
+              required
+              disabled={submitting}
+            />
+          </div>
+          {error && <p className="text-sm text-destructive">{error}</p>}
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => onOpenChange(false)}
+              disabled={submitting}
+            >
+              Batal
+            </Button>
+            <Button type="submit" disabled={submitting}>
+              {submitting && <Loader2 className="animate-spin" />}
+              Simpan
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function DeleteExpenseDialog({
   expense,
   open,
@@ -1533,6 +1637,8 @@ export default function Dashboard() {
   const [expenseOpen, setExpenseOpen] = useState(false);
   const [deleteExpenseTarget, setDeleteExpenseTarget] =
     useState<Expense | null>(null);
+  const [editExpenseTarget, setEditExpenseTarget] =
+    useState<Expense | null>(null);
   const [deletePayTarget, setDeletePayTarget] = useState<{
     warga: Warga;
     payment: PaymentInfo;
@@ -1563,7 +1669,7 @@ export default function Dashboard() {
   const qris = useQuery(api.settings.getQris, role ? undefined : "skip");
   const expenses = useQuery(
     api.pengeluaran.listPengeluaran,
-    canRecord ? undefined : "skip",
+    role ? undefined : "skip",
   );
   const monthsWithData = useQuery(
     api.jimpitan.getMonthsWithData,
@@ -1890,7 +1996,7 @@ export default function Dashboard() {
         )}
 
         {/* Pengeluaran kas */}
-        {canRecord && expenses && (
+        {expenses && (
           <Card className="mt-6 gap-0 overflow-hidden py-0 shadow-sm">
             <CardHeader className="flex-row items-center justify-between gap-4 border-b px-4 py-4 sm:px-6">
               <div>
@@ -1902,10 +2008,12 @@ export default function Dashboard() {
                   Total pengeluaran: {formatRupiah(expenses.total)}
                 </CardDescription>
               </div>
-              <Button size="sm" onClick={() => setExpenseOpen(true)}>
-                <Plus className="size-4" />
-                Tambah pengeluaran
-              </Button>
+              {canRecord && (
+                <Button size="sm" onClick={() => setExpenseOpen(true)}>
+                  <Plus className="size-4" />
+                  Tambah pengeluaran
+                </Button>
+              )}
             </CardHeader>
             <CardContent className="p-0">
               {expenses.items.length === 0 ? (
@@ -1938,15 +2046,28 @@ export default function Dashboard() {
                         <span className="text-sm font-semibold tabular-nums text-destructive">
                           −{formatRupiah(e.nominal)}
                         </span>
-                        <Button
-                          variant="ghost"
-                          size="icon-sm"
-                          className="text-destructive hover:text-destructive"
-                          title="Hapus pengeluaran"
-                          onClick={() => setDeleteExpenseTarget(e)}
-                        >
-                          <Trash2 className="size-4" />
-                        </Button>
+                        {canRecord && (
+                          <>
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
+                              className="text-muted-foreground hover:text-foreground"
+                              title="Ubah pengeluaran"
+                              onClick={() => setEditExpenseTarget(e)}
+                            >
+                              <Pencil className="size-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
+                              className="text-destructive hover:text-destructive"
+                              title="Hapus pengeluaran"
+                              onClick={() => setDeleteExpenseTarget(e)}
+                            >
+                              <Trash2 className="size-4" />
+                            </Button>
+                          </>
+                        )}
                       </div>
                     </li>
                   ))}
@@ -1968,6 +2089,15 @@ export default function Dashboard() {
                 open
                 onOpenChange={(open) => {
                   if (!open) setDeleteExpenseTarget(null);
+                }}
+              />
+            )}
+            {editExpenseTarget && (
+              <EditExpenseDialog
+                expense={editExpenseTarget}
+                open
+                onOpenChange={(open) => {
+                  if (!open) setEditExpenseTarget(null);
                 }}
               />
             )}

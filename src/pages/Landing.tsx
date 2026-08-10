@@ -14,6 +14,7 @@ import {
   HandCoins,
   LineChart,
   PencilLine,
+  Receipt,
   ShieldCheck,
   UserPlus,
 } from "lucide-react";
@@ -101,6 +102,7 @@ function MiniTooltip({
 
 export default function Landing() {
   const stats = useQuery(api.jimpitan.getPublicStats);
+  const publicExpenses = useQuery(api.pengeluaran.getPublicExpenses);
   const chartData = (stats?.series ?? []).map((s) => ({
     ...s,
     label: monthShortLabel(s.month),
@@ -365,6 +367,105 @@ export default function Landing() {
             </div>
           </div>
         </section>
+
+        {/* Pengeluaran kas (view-only) */}
+        {publicExpenses && (
+          <section className="border-b bg-background">
+            <div className="mx-auto w-full max-w-6xl px-4 py-16 sm:px-6 sm:py-20">
+              <motion.div
+                initial={{ opacity: 0, y: 16 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.5 }}
+                className="text-center"
+              >
+                <p className="text-xs font-bold uppercase tracking-widest text-primary">
+                  Transparansi kas
+                </p>
+                <h2 className="mt-2 text-2xl font-extrabold tracking-tight sm:text-3xl">
+                  Pengeluaran kas RT
+                </h2>
+                <p className="mx-auto mt-3 max-w-md text-sm text-muted-foreground">
+                  Setiap pengeluaran tercatat terbuka — saldo kas otomatis
+                  berkurang sesuai nominalnya.
+                </p>
+              </motion.div>
+              <motion.div
+                initial={{ opacity: 0, y: 16 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.4, delay: 0.1 }}
+                className="mx-auto mt-10 max-w-2xl"
+              >
+                <Card className="gap-0 overflow-hidden py-0 shadow-sm">
+                  <CardHeader className="flex-row items-center justify-between border-b px-5 py-4">
+                    <div>
+                      <p className="text-xs font-medium text-muted-foreground">
+                        Total pengeluaran
+                      </p>
+                      <p className="mt-0.5 text-xl font-extrabold tracking-tight tabular-nums text-destructive">
+                        −{formatRupiah(publicExpenses.total)}
+                      </p>
+                    </div>
+                    <Receipt className="size-5 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent className="p-0">
+                    {publicExpenses.items.length === 0 ? (
+                      <div className="px-6 py-10 text-center">
+                        <Receipt className="mx-auto size-8 text-muted-foreground" />
+                        <p className="mt-3 text-sm font-medium">
+                          Belum ada pengeluaran
+                        </p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          Pengeluaran kas akan tampil di sini.
+                        </p>
+                      </div>
+                    ) : (
+                      <>
+                        <ul className="divide-y">
+                          {publicExpenses.items.map((e) => (
+                            <li
+                              key={e._id}
+                              className="flex items-center justify-between gap-3 px-5 py-3"
+                            >
+                              <div className="min-w-0">
+                                <p className="truncate text-sm font-medium">
+                                  {e.alasan}
+                                </p>
+                                <p className="text-xs text-muted-foreground">
+                                  {new Date(e.recordedAt).toLocaleDateString(
+                                    "id-ID",
+                                    {
+                                      day: "numeric",
+                                      month: "short",
+                                      year: "numeric",
+                                    },
+                                  )}
+                                  {e.recordedByName
+                                    ? ` · ${e.recordedByName}`
+                                    : ""}
+                                </p>
+                              </div>
+                              <span className="shrink-0 text-sm font-semibold tabular-nums text-destructive">
+                                −{formatRupiah(e.nominal)}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                        {publicExpenses.count > publicExpenses.items.length && (
+                          <p className="border-t px-5 py-3 text-center text-xs text-muted-foreground">
+                            Menampilkan {publicExpenses.items.length}{" "}
+                            pengeluaran terbaru dari {publicExpenses.count}.
+                          </p>
+                        )}
+                      </>
+                    )}
+                  </CardContent>
+                </Card>
+              </motion.div>
+            </div>
+          </section>
+        )}
 
         {/* How it works */}
         <section
