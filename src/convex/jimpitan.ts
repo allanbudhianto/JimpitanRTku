@@ -208,12 +208,13 @@ export const getMonthlySeries = query({
     const user = await getCurrentUser(ctx);
     if (!user || !user.role) return null;
 
-    const [allPayments, wargaList] = await Promise.all([
+    const [allPayments, wargaList, expenses] = await Promise.all([
       ctx.db.query("jimpitan").collect(),
       ctx.db
         .query("users")
         .filter((q) => q.eq(q.field("role"), ROLES.WARGA))
         .collect(),
+      ctx.db.query("pengeluaran").collect(),
     ]);
 
     const byMonth = new Map<string, number>();
@@ -222,6 +223,7 @@ export const getMonthlySeries = query({
       byMonth.set(p.month, (byMonth.get(p.month) ?? 0) + p.nominal);
       grandTotal += p.nominal;
     }
+    const totalPengeluaran = expenses.reduce((sum, e) => sum + e.nominal, 0);
 
     const series = [...byMonth.entries()]
       .map(([month, total]) => ({ month, total }))
@@ -229,6 +231,8 @@ export const getMonthlySeries = query({
 
     return {
       grandTotal,
+      totalPengeluaran,
+      saldo: grandTotal - totalPengeluaran,
       targetPerMonth: wargaList.length * JIMPITAN_PER_BULAN,
       totalWarga: wargaList.length,
       series,
@@ -244,12 +248,13 @@ export const getMonthlySeries = query({
 export const getPublicStats = query({
   args: {},
   handler: async (ctx) => {
-    const [allPayments, wargaList] = await Promise.all([
+    const [allPayments, wargaList, expenses] = await Promise.all([
       ctx.db.query("jimpitan").collect(),
       ctx.db
         .query("users")
         .filter((q) => q.eq(q.field("role"), ROLES.WARGA))
         .collect(),
+      ctx.db.query("pengeluaran").collect(),
     ]);
 
     const byMonth = new Map<string, number>();
@@ -258,6 +263,7 @@ export const getPublicStats = query({
       byMonth.set(p.month, (byMonth.get(p.month) ?? 0) + p.nominal);
       grandTotal += p.nominal;
     }
+    const totalPengeluaran = expenses.reduce((sum, e) => sum + e.nominal, 0);
     const months = [...byMonth.keys()].sort();
     const latestMonth = months.length > 0 ? months[months.length - 1] : null;
 
@@ -301,6 +307,8 @@ export const getPublicStats = query({
 
     return {
       grandTotal,
+      totalPengeluaran,
+      saldo: grandTotal - totalPengeluaran,
       totalWarga: wargaList.length,
       monthsCount: months.length,
       latestMonth,

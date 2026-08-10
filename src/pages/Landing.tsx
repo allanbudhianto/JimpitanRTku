@@ -287,13 +287,31 @@ export default function Landing() {
                           </div>
                         </div>
                       )}
-                      <div className="mt-4 flex items-center justify-between border-t pt-3 text-xs">
-                        <span className="text-muted-foreground">
-                          Total kas terkumpul
-                        </span>
-                        <span className="font-bold tabular-nums">
-                          {formatRupiah(stats.grandTotal)}
-                        </span>
+                      <div className="mt-4 space-y-1 border-t pt-3 text-xs">
+                        <div className="flex items-center justify-between">
+                          <span className="text-muted-foreground">
+                            Total terkumpul
+                          </span>
+                          <span className="font-semibold tabular-nums">
+                            {formatRupiah(stats.grandTotal)}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-muted-foreground">
+                            Pengeluaran
+                          </span>
+                          <span className="font-semibold tabular-nums text-destructive">
+                            −{formatRupiah(stats.totalPengeluaran)}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between border-t pt-1">
+                          <span className="font-medium text-foreground">
+                            Saldo kas
+                          </span>
+                          <span className="font-bold tabular-nums">
+                            {formatRupiah(stats.saldo)}
+                          </span>
+                        </div>
                       </div>
                     </>
                   )}

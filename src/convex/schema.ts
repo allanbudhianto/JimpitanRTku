@@ -67,6 +67,14 @@ const schema = defineSchema(
       qrisMerchantName: v.optional(v.string()), // merchant / atas nama
       qrisActive: v.optional(v.boolean()),
     }).index("key", ["key"]),
+
+    // Cash outflows (pengeluaran kas RT), recorded by admin & pengurus.
+    // Reduces the total kas saldo: saldo = total terkumpul - total pengeluaran.
+    pengeluaran: defineTable({
+      nominal: v.number(),
+      alasan: v.string(),
+      recordedById: v.id("users"),
+    }),
   },
   {
     schemaValidation: false,

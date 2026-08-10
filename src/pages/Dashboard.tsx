@@ -83,6 +83,7 @@ import {
   Pencil,
   Plus,
   QrCode,
+  Receipt,
   Settings2,
   Trash2,
   UserRoundPlus,
@@ -232,6 +233,14 @@ type ManagedUser = {
   alamat: string;
   noRumah: string;
   _creationTime: number;
+};
+
+type Expense = {
+  _id: Id<"pengeluaran">;
+  nominal: number;
+  alasan: string;
+  recordedByName: string;
+  recordedAt: number;
 };
 
 /* ------------------------------------------------------------------ */
@@ -966,6 +975,165 @@ function QrisDialog({
   );
 }
 
+function AddExpenseDialog({
+  open,
+  onOpenChange,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const addPengeluaran = useMutation(api.pengeluaran.addPengeluaran);
+  const [nominal, setNominal] = useState("");
+  const [alasan, setAlasan] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (open) {
+      setNominal("");
+      setAlasan("");
+      setError(null);
+    }
+  }, [open]);
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    const value = Number(nominal.replace(/\D/g, ""));
+    if (!Number.isFinite(value) || value <= 0) {
+      setError("Masukkan nominal yang valid.");
+      return;
+    }
+    if (alasan.trim().length < 3) {
+      setError("Alasan pengeluaran minimal 3 karakter.");
+      return;
+    }
+    setSubmitting(true);
+    setError(null);
+    try {
+      await addPengeluaran({ nominal: value, alasan });
+      toast.success(`Pengeluaran ${formatRupiah(value)} dicatat.`);
+      onOpenChange(false);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Gagal mencatat pengeluaran.",
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Tambah pengeluaran</DialogTitle>
+          <DialogDescription>
+            Saldo kas akan berkurang sebesar nominal yang dicatat.
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <div className="grid gap-2">
+            <Label htmlFor="ex-nominal">Nominal (Rp)</Label>
+            <Input
+              id="ex-nominal"
+              inputMode="numeric"
+              placeholder="cth: 50000"
+              value={nominal}
+              onChange={(e) => setNominal(e.target.value)}
+              autoFocus
+              required
+              disabled={submitting}
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="ex-alasan">Alasan pengeluaran</Label>
+            <Input
+              id="ex-alasan"
+              placeholder="cth: belanja konsumsi rapat warga"
+              value={alasan}
+              onChange={(e) => setAlasan(e.target.value)}
+              required
+              disabled={submitting}
+            />
+          </div>
+          {error && <p className="text-sm text-destructive">{error}</p>}
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => onOpenChange(false)}
+              disabled={submitting}
+            >
+              Batal
+            </Button>
+            <Button type="submit" disabled={submitting}>
+              {submitting && <Loader2 className="animate-spin" />}
+              Simpan
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function DeleteExpenseDialog({
+  expense,
+  open,
+  onOpenChange,
+}: {
+  expense: Expense;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const deletePengeluaran = useMutation(api.pengeluaran.deletePengeluaran);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleDelete = async () => {
+    setSubmitting(true);
+    setError(null);
+    try {
+      await deletePengeluaran({ expenseId: expense._id });
+      toast.success("Pengeluaran dihapus.");
+      onOpenChange(false);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Gagal menghapus pengeluaran.",
+      );
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <AlertDialog open={open} onOpenChange={onOpenChange}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Hapus pengeluaran ini?</AlertDialogTitle>
+          <AlertDialogDescription>
+            Catatan pengeluaran {formatRupiah(expense.nominal)} —{" "}
+            {expense.alasan} — akan dihapus, dan saldo kas kembali naik.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        {error && <p className="text-sm text-destructive">{error}</p>}
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={submitting}>Batal</AlertDialogCancel>
+          <AlertDialogAction
+            className="bg-destructive text-white hover:bg-destructive/90"
+            disabled={submitting}
+            onClick={(e) => {
+              e.preventDefault();
+              handleDelete();
+            }}
+          >
+            {submitting ? "Menghapus..." : "Hapus"}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
+
 function DeleteUserDialog({
   user,
   open,
@@ -1362,6 +1530,9 @@ export default function Dashboard() {
   const [deleteTarget, setDeleteTarget] = useState<ManagedUser | null>(null);
   const [changePwdOpen, setChangePwdOpen] = useState(false);
   const [qrisOpen, setQrisOpen] = useState(false);
+  const [expenseOpen, setExpenseOpen] = useState(false);
+  const [deleteExpenseTarget, setDeleteExpenseTarget] =
+    useState<Expense | null>(null);
   const [deletePayTarget, setDeletePayTarget] = useState<{
     warga: Warga;
     payment: PaymentInfo;
@@ -1390,6 +1561,10 @@ export default function Dashboard() {
     role ? undefined : "skip",
   );
   const qris = useQuery(api.settings.getQris, role ? undefined : "skip");
+  const expenses = useQuery(
+    api.pengeluaran.listPengeluaran,
+    canRecord ? undefined : "skip",
+  );
   const monthsWithData = useQuery(
     api.jimpitan.getMonthsWithData,
     role ? undefined : "skip",
@@ -1562,19 +1737,15 @@ export default function Dashboard() {
                 </div>
                 <div>
                   <p className="text-xs font-medium text-muted-foreground">
-                    Total kas terkumpul
+                    Saldo kas
                   </p>
                   <p className="mt-0.5 text-2xl font-extrabold tracking-tight tabular-nums sm:text-3xl">
-                    {formatRupiah(series.grandTotal)}
+                    {formatRupiah(series.saldo)}
                   </p>
                   <p className="mt-0.5 text-xs text-muted-foreground">
-                    {series.series.length} bulan dengan data · rata-rata{" "}
-                    {formatRupiah(
-                      series.series.length
-                        ? Math.round(series.grandTotal / series.series.length)
-                        : 0,
-                    )}
-                    /bulan
+                    {series.series.length} bulan · terkumpul{" "}
+                    {formatRupiah(series.grandTotal)} · pengeluaran{" "}
+                    {formatRupiah(series.totalPengeluaran)}
                   </p>
                 </div>
               </div>
@@ -1716,6 +1887,91 @@ export default function Dashboard() {
 
         {qris && (
           <QrisDialog qris={qris} open={qrisOpen} onOpenChange={setQrisOpen} />
+        )}
+
+        {/* Pengeluaran kas */}
+        {canRecord && expenses && (
+          <Card className="mt-6 gap-0 overflow-hidden py-0 shadow-sm">
+            <CardHeader className="flex-row items-center justify-between gap-4 border-b px-4 py-4 sm:px-6">
+              <div>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Receipt className="size-4 text-primary" />
+                  Pengeluaran kas
+                </CardTitle>
+                <CardDescription className="mt-1">
+                  Total pengeluaran: {formatRupiah(expenses.total)}
+                </CardDescription>
+              </div>
+              <Button size="sm" onClick={() => setExpenseOpen(true)}>
+                <Plus className="size-4" />
+                Tambah pengeluaran
+              </Button>
+            </CardHeader>
+            <CardContent className="p-0">
+              {expenses.items.length === 0 ? (
+                <div className="px-6 py-10 text-center">
+                  <Receipt className="mx-auto size-8 text-muted-foreground" />
+                  <p className="mt-3 text-sm font-medium">
+                    Belum ada pengeluaran
+                  </p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Catat pengeluaran kas RT beserta alasannya.
+                  </p>
+                </div>
+              ) : (
+                <ul className="divide-y">
+                  {expenses.items.map((e) => (
+                    <li
+                      key={e._id}
+                      className="flex items-center justify-between gap-3 px-4 py-3 sm:px-6"
+                    >
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium">
+                          {e.alasan}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {formatDate(e.recordedAt)} · dicatat oleh{" "}
+                          {e.recordedByName}
+                        </p>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-2">
+                        <span className="text-sm font-semibold tabular-nums text-destructive">
+                          −{formatRupiah(e.nominal)}
+                        </span>
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          className="text-destructive hover:text-destructive"
+                          title="Hapus pengeluaran"
+                          onClick={() => setDeleteExpenseTarget(e)}
+                        >
+                          <Trash2 className="size-4" />
+                        </Button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {canRecord && (
+          <>
+            <AddExpenseDialog
+              open={expenseOpen}
+              onOpenChange={setExpenseOpen}
+            />
+            {deleteExpenseTarget && (
+              <DeleteExpenseDialog
+                expense={deleteExpenseTarget}
+                open
+                onOpenChange={(open) => {
+                  if (!open) setDeleteExpenseTarget(null);
+                }}
+              />
+            )}
+          </>
         )}
 
         {/* Grafik per bulan */}
