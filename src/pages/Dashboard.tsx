@@ -1,5 +1,15 @@
 import { api } from "@/convex/_generated/api";
 import { ROLES, type Role } from "@/convex/schema";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -54,6 +64,7 @@ import {
   ChevronRight,
   CircleDashed,
   HandCoins,
+  KeyRound,
   Loader2,
   LogOut,
   Pencil,
@@ -144,6 +155,16 @@ type PaymentInfo = {
 };
 
 type OverviewRow = { warga: Warga; payment: PaymentInfo | null };
+
+type ManagedUser = {
+  _id: Id<"users">;
+  name: string;
+  username: string;
+  role: Role;
+  alamat: string;
+  noRumah: string;
+  _creationTime: number;
+};
 
 /* ------------------------------------------------------------------ */
 /* Dialogs                                                             */
@@ -384,6 +405,310 @@ function AddUserDialog({
   );
 }
 
+function EditUserDialog({
+  user,
+  open,
+  onOpenChange,
+}: {
+  user: ManagedUser;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const updateUser = useMutation(api.users.updateUser);
+  const [name, setName] = useState(user.name);
+  const [username, setUsername] = useState(user.username);
+  const [role, setRole] = useState<"warga" | "pengurus">(
+    user.role === ROLES.PENGGURUS ? ROLES.PENGGURUS : ROLES.WARGA,
+  );
+  const [alamat, setAlamat] = useState(user.alamat);
+  const [noRumah, setNoRumah] = useState(user.noRumah);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (open) {
+      setName(user.name);
+      setUsername(user.username);
+      setRole(user.role === ROLES.PENGGURUS ? ROLES.PENGGURUS : ROLES.WARGA);
+      setAlamat(user.alamat);
+      setNoRumah(user.noRumah);
+      setError(null);
+    }
+  }, [open, user]);
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    setError(null);
+    try {
+      await updateUser({
+        userId: user._id,
+        name,
+        username,
+        role,
+        alamat: alamat.trim() || undefined,
+        noRumah: noRumah.trim() || undefined,
+      });
+      toast.success(`Data ${name.trim()} diperbarui.`);
+      onOpenChange(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Gagal memperbarui data.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Ubah data {user.name}</DialogTitle>
+          <DialogDescription>
+            Perbarui data warga/pengurus ini. Jika username diubah, login
+            mereka ikut berubah.
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <div className="grid gap-2">
+            <Label htmlFor="eu-name">Nama lengkap</Label>
+            <Input
+              id="eu-name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
+              disabled={submitting}
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="eu-username">Username</Label>
+            <Input
+              id="eu-username"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              autoCapitalize="none"
+              spellCheck={false}
+              required
+              disabled={submitting}
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label>Peran</Label>
+            <Select
+              value={role}
+              onValueChange={(v) => setRole(v as "warga" | "pengurus")}
+              disabled={submitting}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ROLES.WARGA}>Warga</SelectItem>
+                <SelectItem value={ROLES.PENGGURUS}>Pengurus</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          {role === ROLES.WARGA && (
+            <div className="grid grid-cols-2 gap-3">
+              <div className="grid gap-2">
+                <Label htmlFor="eu-rumah">No. rumah</Label>
+                <Input
+                  id="eu-rumah"
+                  value={noRumah}
+                  onChange={(e) => setNoRumah(e.target.value)}
+                  disabled={submitting}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="eu-alamat">Alamat / RT</Label>
+                <Input
+                  id="eu-alamat"
+                  value={alamat}
+                  onChange={(e) => setAlamat(e.target.value)}
+                  disabled={submitting}
+                />
+              </div>
+            </div>
+          )}
+          {error && <p className="text-sm text-destructive">{error}</p>}
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => onOpenChange(false)}
+              disabled={submitting}
+            >
+              Batal
+            </Button>
+            <Button type="submit" disabled={submitting}>
+              {submitting && <Loader2 className="animate-spin" />}
+              Simpan
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function PasswordDialog({
+  user,
+  open,
+  onOpenChange,
+}: {
+  user: ManagedUser;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const changeUserPassword = useMutation(api.users.changeUserPassword);
+  const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (open) {
+      setPassword("");
+      setConfirm("");
+      setError(null);
+    }
+  }, [open]);
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (password.length < 4) {
+      setError("Password minimal 4 karakter.");
+      return;
+    }
+    if (password !== confirm) {
+      setError("Konfirmasi password tidak cocok.");
+      return;
+    }
+    setSubmitting(true);
+    setError(null);
+    try {
+      await changeUserPassword({ userId: user._id, password });
+      toast.success(`Password ${user.name} diperbarui.`);
+      onOpenChange(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Gagal mengubah password.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Ubah password {user.name}</DialogTitle>
+          <DialogDescription>
+            Password baru dipakai saat login dengan username @{user.username}.
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <div className="grid gap-2">
+            <Label htmlFor="pd-password">Password baru</Label>
+            <Input
+              id="pd-password"
+              type="text"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="minimal 4 karakter"
+              autoComplete="off"
+              autoFocus
+              required
+              disabled={submitting}
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="pd-confirm">Ulangi password</Label>
+            <Input
+              id="pd-confirm"
+              type="text"
+              value={confirm}
+              onChange={(e) => setConfirm(e.target.value)}
+              placeholder="ketik ulang password"
+              autoComplete="off"
+              required
+              disabled={submitting}
+            />
+          </div>
+          {error && <p className="text-sm text-destructive">{error}</p>}
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => onOpenChange(false)}
+              disabled={submitting}
+            >
+              Batal
+            </Button>
+            <Button type="submit" disabled={submitting}>
+              {submitting && <Loader2 className="animate-spin" />}
+              Simpan
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function DeleteUserDialog({
+  user,
+  open,
+  onOpenChange,
+}: {
+  user: ManagedUser;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const deleteUser = useMutation(api.users.deleteUser);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleDelete = async () => {
+    setSubmitting(true);
+    setError(null);
+    try {
+      await deleteUser({ userId: user._id });
+      toast.success(`Akun ${user.name} dihapus.`);
+      onOpenChange(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Gagal menghapus akun.");
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <AlertDialog open={open} onOpenChange={onOpenChange}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Hapus {user.name}?</AlertDialogTitle>
+          <AlertDialogDescription>
+            Akun, sesi login, dan seluruh catatan pembayaran {user.name} akan
+            dihapus permanen. Tindakan ini tidak dapat dibatalkan.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        {error && <p className="text-sm text-destructive">{error}</p>}
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={submitting}>Batal</AlertDialogCancel>
+          <AlertDialogAction
+            className="bg-destructive text-white hover:bg-destructive/90"
+            disabled={submitting}
+            onClick={(e) => {
+              e.preventDefault();
+              handleDelete();
+            }}
+          >
+            {submitting ? "Menghapus..." : "Hapus"}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
+
 function PayDialog({
   warga,
   month,
@@ -611,6 +936,9 @@ export default function Dashboard() {
   const [month, setMonth] = useState(currentMonthKey);
   const [nameDialogOpen, setNameDialogOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
+  const [editTarget, setEditTarget] = useState<ManagedUser | null>(null);
+  const [pwdTarget, setPwdTarget] = useState<ManagedUser | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<ManagedUser | null>(null);
   const [payTarget, setPayTarget] = useState<{
     warga: Warga;
     payment: PaymentInfo | null;
@@ -972,7 +1300,8 @@ export default function Dashboard() {
                     <TableHead className="pl-4 sm:pl-6">Nama</TableHead>
                     <TableHead>Username</TableHead>
                     <TableHead className="hidden sm:table-cell">Rumah</TableHead>
-                    <TableHead className="text-right">Peran</TableHead>
+                    <TableHead>Peran</TableHead>
+                    <TableHead className="text-right">Aksi</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -994,8 +1323,48 @@ export default function Dashboard() {
                           ? u.noRumah || u.alamat || "—"
                           : "—"}
                       </TableCell>
-                      <TableCell className="text-right">
+                      <TableCell>
                         <RoleBadge role={u.role} />
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {u.role === ROLES.ADMIN ? (
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            title="Ubah password"
+                            onClick={() => setPwdTarget(u)}
+                          >
+                            <KeyRound className="size-4" />
+                          </Button>
+                        ) : (
+                          <div className="flex items-center justify-end gap-0.5">
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
+                              title="Ubah data"
+                              onClick={() => setEditTarget(u)}
+                            >
+                              <Pencil className="size-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
+                              title="Ubah password"
+                              onClick={() => setPwdTarget(u)}
+                            >
+                              <KeyRound className="size-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
+                              className="text-destructive hover:text-destructive"
+                              title="Hapus akun"
+                              onClick={() => setDeleteTarget(u)}
+                            >
+                              <Trash2 className="size-4" />
+                            </Button>
+                          </div>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))}
@@ -1009,6 +1378,33 @@ export default function Dashboard() {
       {/* Dialogs */}
       <NameDialog open={nameDialogOpen} onOpenChange={setNameDialogOpen} />
       <AddUserDialog open={addOpen} onOpenChange={setAddOpen} />
+      {editTarget && (
+        <EditUserDialog
+          user={editTarget}
+          open
+          onOpenChange={(open) => {
+            if (!open) setEditTarget(null);
+          }}
+        />
+      )}
+      {pwdTarget && (
+        <PasswordDialog
+          user={pwdTarget}
+          open
+          onOpenChange={(open) => {
+            if (!open) setPwdTarget(null);
+          }}
+        />
+      )}
+      {deleteTarget && (
+        <DeleteUserDialog
+          user={deleteTarget}
+          open
+          onOpenChange={(open) => {
+            if (!open) setDeleteTarget(null);
+          }}
+        />
+      )}
       {payTarget && (
         <PayDialog
           warga={payTarget.warga}
