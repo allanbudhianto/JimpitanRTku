@@ -709,6 +709,63 @@ function DeleteUserDialog({
   );
 }
 
+function DeletePaymentDialog({
+  warga,
+  payment,
+  open,
+  onOpenChange,
+}: {
+  warga: Warga;
+  payment: PaymentInfo;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const deletePayment = useMutation(api.jimpitan.deletePayment);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleDelete = async () => {
+    setSubmitting(true);
+    setError(null);
+    try {
+      await deletePayment({ paymentId: payment._id });
+      toast.success(`Pembayaran ${warga.name} dihapus.`);
+      onOpenChange(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Gagal menghapus pembayaran.");
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <AlertDialog open={open} onOpenChange={onOpenChange}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Hapus pembayaran {warga.name}?</AlertDialogTitle>
+          <AlertDialogDescription>
+            Catatan pembayaran {formatRupiah(payment.nominal)} untuk bulan ini
+            akan dihapus, dan {warga.name} akan kembali ditandai belum membayar.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        {error && <p className="text-sm text-destructive">{error}</p>}
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={submitting}>Batal</AlertDialogCancel>
+          <AlertDialogAction
+            className="bg-destructive text-white hover:bg-destructive/90"
+            disabled={submitting}
+            onClick={(e) => {
+              e.preventDefault();
+              handleDelete();
+            }}
+          >
+            {submitting ? "Menghapus..." : "Hapus"}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
+
 function PayDialog({
   warga,
   month,
@@ -939,6 +996,10 @@ export default function Dashboard() {
   const [editTarget, setEditTarget] = useState<ManagedUser | null>(null);
   const [pwdTarget, setPwdTarget] = useState<ManagedUser | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ManagedUser | null>(null);
+  const [deletePayTarget, setDeletePayTarget] = useState<{
+    warga: Warga;
+    payment: PaymentInfo;
+  } | null>(null);
   const [payTarget, setPayTarget] = useState<{
     warga: Warga;
     payment: PaymentInfo | null;
@@ -1244,28 +1305,46 @@ export default function Dashboard() {
                       </TableCell>
                       {canRecord && (
                         <TableCell className="text-right">
-                          <Button
-                            variant={row.payment ? "outline" : "default"}
-                            size="sm"
-                            onClick={() =>
-                              setPayTarget({
-                                warga: row.warga,
-                                payment: row.payment,
-                              })
-                            }
-                          >
-                            {row.payment ? (
-                              <>
-                                <Pencil className="size-3.5" />
-                                Edit
-                              </>
-                            ) : (
-                              <>
-                                <Plus className="size-3.5" />
-                                Catat
-                              </>
+                          <div className="flex items-center justify-end gap-1">
+                            <Button
+                              variant={row.payment ? "outline" : "default"}
+                              size="sm"
+                              onClick={() =>
+                                setPayTarget({
+                                  warga: row.warga,
+                                  payment: row.payment,
+                                })
+                              }
+                            >
+                              {row.payment ? (
+                                <>
+                                  <Pencil className="size-3.5" />
+                                  Edit
+                                </>
+                              ) : (
+                                <>
+                                  <Plus className="size-3.5" />
+                                  Catat
+                                </>
+                              )}
+                            </Button>
+                            {isAdmin && row.payment && (
+                              <Button
+                                variant="ghost"
+                                size="icon-sm"
+                                className="text-destructive hover:text-destructive"
+                                title="Hapus pembayaran"
+                                onClick={() =>
+                                  setDeletePayTarget({
+                                    warga: row.warga,
+                                    payment: row.payment!,
+                                  })
+                                }
+                              >
+                                <Trash2 className="size-4" />
+                              </Button>
                             )}
-                          </Button>
+                          </div>
                         </TableCell>
                       )}
                     </TableRow>
@@ -1402,6 +1481,16 @@ export default function Dashboard() {
           open
           onOpenChange={(open) => {
             if (!open) setDeleteTarget(null);
+          }}
+        />
+      )}
+      {deletePayTarget && (
+        <DeletePaymentDialog
+          warga={deletePayTarget.warga}
+          payment={deletePayTarget.payment}
+          open
+          onOpenChange={(open) => {
+            if (!open) setDeletePayTarget(null);
           }}
         />
       )}
