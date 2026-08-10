@@ -197,3 +197,41 @@ export const deletePayment = mutation({
     await ctx.db.delete(paymentId);
   },
 });
+
+/**
+ * Monthly collection series for the chart: nominal collected per month
+ * (ascending), plus the grand total and the per-month target.
+ */
+export const getMonthlySeries = query({
+  args: {},
+  handler: async (ctx) => {
+    const user = await getCurrentUser(ctx);
+    if (!user || !user.role) return null;
+
+    const [allPayments, wargaList] = await Promise.all([
+      ctx.db.query("jimpitan").collect(),
+      ctx.db
+        .query("users")
+        .filter((q) => q.eq(q.field("role"), ROLES.WARGA))
+        .collect(),
+    ]);
+
+    const byMonth = new Map<string, number>();
+    let grandTotal = 0;
+    for (const p of allPayments) {
+      byMonth.set(p.month, (byMonth.get(p.month) ?? 0) + p.nominal);
+      grandTotal += p.nominal;
+    }
+
+    const series = [...byMonth.entries()]
+      .map(([month, total]) => ({ month, total }))
+      .sort((a, b) => a.month.localeCompare(b.month));
+
+    return {
+      grandTotal,
+      targetPerMonth: wargaList.length * JIMPITAN_PER_BULAN,
+      totalWarga: wargaList.length,
+      series,
+    };
+  },
+});

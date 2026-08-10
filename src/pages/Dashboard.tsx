@@ -21,6 +21,15 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import {
+  ChartContainer,
+  ChartLegend,
+  ChartLegendContent,
+  ChartTooltip,
+  ChartTooltipContent,
+  type ChartConfig,
+} from "@/components/ui/chart";
+import { cn } from "@/lib/utils";
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -58,6 +67,7 @@ import { format } from "date-fns";
 import { id } from "date-fns/locale";
 import { useMutation, useQuery } from "convex/react";
 import {
+  BarChart3,
   CalendarDays,
   CheckCircle2,
   ChevronLeft,
@@ -65,6 +75,7 @@ import {
   CircleDashed,
   HandCoins,
   KeyRound,
+  Landmark,
   Loader2,
   LogOut,
   Pencil,
@@ -74,6 +85,14 @@ import {
   Users,
   Wallet,
 } from "lucide-react";
+import {
+  Bar,
+  CartesianGrid,
+  ComposedChart,
+  Line,
+  XAxis,
+  YAxis,
+} from "recharts";
 import type { Id } from "@/convex/_generated/dataModel";
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { useNavigate } from "react-router";
@@ -99,12 +118,23 @@ function monthLabel(month: string) {
   return format(new Date(y, m - 1, 1), "MMMM yyyy", { locale: id });
 }
 
+function monthShortLabel(month: string) {
+  const [y, m] = month.split("-").map(Number);
+  return format(new Date(y, m - 1, 1), "MMM yy", { locale: id });
+}
+
 function formatRupiah(n: number) {
   return new Intl.NumberFormat("id-ID", {
     style: "currency",
     currency: "IDR",
     maximumFractionDigits: 0,
   }).format(n);
+}
+
+function formatCompact(n: number) {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}jt`;
+  if (n >= 1_000) return `${Math.round(n / 1_000)}rb`;
+  return String(n);
 }
 
 function formatDate(ts: number) {
@@ -137,6 +167,28 @@ function RoleBadge({ role }: { role: Role }) {
     <Badge variant="outline" className={ROLE_BADGE_CLASS[role]}>
       {ROLE_LABEL[role]}
     </Badge>
+  );
+}
+
+const FILTERS: { key: "semua" | "lunas" | "belum"; label: string }[] = [
+  { key: "semua", label: "Semua" },
+  { key: "lunas", label: "Sudah bayar" },
+  { key: "belum", label: "Belum bayar" },
+];
+
+const chartConfig = {
+  total: { label: "Terkumpul", color: "var(--primary)" },
+  target: { label: "Target", color: "var(--muted-foreground)" },
+} satisfies ChartConfig;
+
+function chartTooltipFormatter(value: unknown, name: unknown) {
+  return (
+    <div className="flex w-full items-center justify-between gap-4">
+      <span className="text-muted-foreground">{String(name)}</span>
+      <span className="font-medium tabular-nums">
+        {formatRupiah(Number(value))}
+      </span>
+    </div>
   );
 }
 
@@ -1000,15 +1052,27 @@ function StatCard({
   value,
   sub,
   progress,
+  onClick,
+  active,
 }: {
   icon: ReactNode;
   label: string;
   value: string;
   sub?: string;
   progress?: number;
+  onClick?: () => void;
+  active?: boolean;
 }) {
   return (
-    <Card className="gap-0 py-0 shadow-sm">
+    <Card
+      className={cn(
+        "gap-0 py-0 shadow-sm",
+        onClick &&
+          "cursor-pointer transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md",
+        active && "ring-2 ring-primary/50",
+      )}
+      onClick={onClick}
+    >
       <CardContent className="px-4 py-4 sm:px-5">
         <div className="flex items-center justify-between">
           <p className="text-xs font-medium text-muted-foreground">{label}</p>
@@ -1056,6 +1120,7 @@ export default function Dashboard() {
     payment: PaymentInfo | null;
     saldoBefore: number;
   } | null>(null);
+  const [filter, setFilter] = useState<"semua" | "lunas" | "belum">("semua");
 
   const role = user?.role ?? null;
   const isAdmin = role === ROLES.ADMIN;
@@ -1069,6 +1134,10 @@ export default function Dashboard() {
   }, [isLoading, user]);
 
   const overview = useQuery(api.jimpitan.getOverview, role ? { month } : "skip");
+  const series = useQuery(
+    api.jimpitan.getMonthlySeries,
+    role ? undefined : "skip",
+  );
   const monthsWithData = useQuery(
     api.jimpitan.getMonthsWithData,
     role ? undefined : "skip",
@@ -1087,6 +1156,15 @@ export default function Dashboard() {
     overview && overview.totalWarga > 0
       ? Math.round((overview.paidCount / overview.totalWarga) * 100)
       : 0;
+
+  const chartData = (series?.series ?? []).map((s) => ({
+    ...s,
+    label: monthShortLabel(s.month),
+    target: series?.targetPerMonth ?? 0,
+  }));
+  const visibleRows = (overview?.rows ?? []).filter(
+    (r) => filter === "semua" || r.status === filter,
+  );
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -1215,6 +1293,42 @@ export default function Dashboard() {
           </div>
         </div>
 
+        {/* Total kas */}
+        {series && (
+          <Card className="mt-6 gap-0 overflow-hidden py-0 shadow-sm">
+            <CardContent className="flex flex-wrap items-center justify-between gap-4 px-5 py-5 sm:px-6">
+              <div className="flex items-center gap-4">
+                <div className="flex size-11 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                  <Landmark className="size-5" />
+                </div>
+                <div>
+                  <p className="text-xs font-medium text-muted-foreground">
+                    Total kas terkumpul
+                  </p>
+                  <p className="mt-0.5 text-2xl font-extrabold tracking-tight tabular-nums sm:text-3xl">
+                    {formatRupiah(series.grandTotal)}
+                  </p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    {series.series.length} bulan dengan data · rata-rata{" "}
+                    {formatRupiah(
+                      series.series.length
+                        ? Math.round(series.grandTotal / series.series.length)
+                        : 0,
+                    )}
+                    /bulan
+                  </p>
+                </div>
+              </div>
+              <div className="rounded-xl border bg-muted/40 px-4 py-2.5 text-xs">
+                <p className="text-muted-foreground">Target per bulan</p>
+                <p className="mt-0.5 text-sm font-bold tabular-nums">
+                  {formatRupiah(series.targetPerMonth)}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Stats */}
         {overview && (
           <div className="mt-6 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
@@ -1243,11 +1357,19 @@ export default function Dashboard() {
               label="Sudah bayar"
               value={`${overview.paidCount} warga`}
               progress={paidPct}
+              active={filter === "lunas"}
+              onClick={() =>
+                setFilter((f) => (f === "lunas" ? "semua" : "lunas"))
+              }
             />
             <StatCard
               icon={<CircleDashed className="size-4" />}
               label="Belum bayar"
               value={`${overview.unpaidCount} warga`}
+              active={filter === "belum"}
+              onClick={() =>
+                setFilter((f) => (f === "belum" ? "semua" : "belum"))
+              }
               sub={
                 overview.totalWarga > 0
                   ? `${paidPct}% warga sudah membayar`
@@ -1257,9 +1379,88 @@ export default function Dashboard() {
           </div>
         )}
 
+        {/* Grafik per bulan */}
+        {series && (
+          <Card className="mt-6 gap-0 overflow-hidden py-0 shadow-sm">
+            <CardHeader className="flex-row items-center justify-between gap-4 border-b px-4 py-4 sm:px-6">
+              <div>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <BarChart3 className="size-4 text-primary" />
+                  Grafik iuran per bulan
+                </CardTitle>
+                <CardDescription className="mt-1">
+                  Nominal terkumpul tiap bulan dibanding target{" "}
+                  {formatRupiah(series.targetPerMonth)}
+                </CardDescription>
+              </div>
+            </CardHeader>
+            <CardContent className="p-4 sm:p-6">
+              {chartData.length === 0 ? (
+                <div className="flex flex-col items-center gap-2 py-10 text-center">
+                  <BarChart3 className="size-8 text-muted-foreground" />
+                  <p className="text-sm font-medium">
+                    Belum ada data pembayaran
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Catat pembayaran bulanan untuk melihat grafik.
+                  </p>
+                </div>
+              ) : (
+                <ChartContainer
+                  config={chartConfig}
+                  className="h-64 w-full"
+                >
+                  <ComposedChart
+                    data={chartData}
+                    margin={{ top: 8, right: 8, left: 0, bottom: 0 }}
+                  >
+                    <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                    <XAxis
+                      dataKey="label"
+                      tickLine={false}
+                      axisLine={false}
+                      tickMargin={8}
+                    />
+                    <YAxis
+                      tickLine={false}
+                      axisLine={false}
+                      width={44}
+                      allowDecimals={false}
+                      tickFormatter={(v: number) => formatCompact(v)}
+                    />
+                    <ChartTooltip
+                      content={
+                        <ChartTooltipContent formatter={chartTooltipFormatter} />
+                      }
+                      cursor={{ fill: "var(--muted)", opacity: 0.4 }}
+                    />
+                    <ChartLegend content={<ChartLegendContent />} />
+                    <Bar
+                      dataKey="total"
+                      name="Terkumpul"
+                      fill="var(--color-total)"
+                      radius={[6, 6, 0, 0]}
+                      maxBarSize={42}
+                    />
+                    <Line
+                      dataKey="target"
+                      name="Target"
+                      stroke="var(--color-target)"
+                      strokeWidth={2}
+                      strokeDasharray="6 4"
+                      dot={false}
+                      type="monotone"
+                    />
+                  </ComposedChart>
+                </ChartContainer>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
         {/* Monthly detail table */}
         <Card className="mt-6 gap-0 overflow-hidden py-0 shadow-sm">
-          <CardHeader className="flex-row items-center justify-between gap-4 border-b px-4 py-4 sm:px-6">
+          <CardHeader className="flex-col gap-3 border-b px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
             <div>
               <CardTitle className="text-base">Rincian jimpitan</CardTitle>
               <CardDescription className="mt-1">
@@ -1269,6 +1470,42 @@ export default function Dashboard() {
                   ? `${overview.paidCount} dari ${overview.totalWarga} warga lunas`
                   : "Memuat data…"}
               </CardDescription>
+            </div>
+            <div
+              className="flex items-center gap-1 rounded-xl border bg-muted/40 p-1"
+              role="tablist"
+              aria-label="Saring status pembayaran"
+            >
+              {FILTERS.map((f) => {
+                const count =
+                  f.key === "semua"
+                    ? overview?.totalWarga
+                    : f.key === "lunas"
+                      ? overview?.paidCount
+                      : overview?.unpaidCount;
+                return (
+                  <Button
+                    key={f.key}
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    role="tab"
+                    aria-selected={filter === f.key}
+                    className={cn(
+                      "h-7 gap-1.5 px-2.5 text-xs",
+                      filter === f.key && "bg-background font-semibold shadow-sm",
+                    )}
+                    onClick={() => setFilter(f.key)}
+                  >
+                    {f.label}
+                    {count !== undefined && (
+                      <span className="tabular-nums text-muted-foreground">
+                        {count}
+                      </span>
+                    )}
+                  </Button>
+                );
+              })}
             </div>
           </CardHeader>
           <CardContent className="p-0">
@@ -1291,6 +1528,24 @@ export default function Dashboard() {
                     : "Silakan hubungi admin RT untuk mendaftarkan warga."}
                 </p>
               </div>
+            ) : visibleRows.length === 0 ? (
+              <div className="px-6 py-14 text-center">
+                <div className="mx-auto flex size-11 items-center justify-center rounded-2xl bg-muted text-muted-foreground">
+                  {filter === "lunas" ? (
+                    <CheckCircle2 className="size-5" />
+                  ) : (
+                    <CircleDashed className="size-5" />
+                  )}
+                </div>
+                <p className="mt-3 text-sm font-medium">
+                  {filter === "lunas"
+                    ? "Belum ada warga yang lunas bulan ini"
+                    : "Semua warga sudah lunas bulan ini"}
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Pilih "Semua" untuk melihat seluruh warga.
+                </p>
+              </div>
             ) : (
               <Table>
                 <TableHeader>
@@ -1310,7 +1565,7 @@ export default function Dashboard() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {overview.rows.map((row: OverviewRow, i: number) => (
+                  {visibleRows.map((row: OverviewRow, i: number) => (
                     <TableRow key={row.warga._id}>
                       <TableCell className="pl-4 pr-1 text-muted-foreground sm:pl-6">
                         {i + 1}
