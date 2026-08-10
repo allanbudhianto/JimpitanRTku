@@ -1,7 +1,11 @@
+import { api } from "@/convex/_generated/api";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { format } from "date-fns";
+import { id } from "date-fns/locale";
 import { motion } from "framer-motion";
+import { useQuery } from "convex/react";
 import {
   ArrowRight,
   CalendarCheck2,
@@ -13,6 +17,7 @@ import {
   ShieldCheck,
   UserPlus,
 } from "lucide-react";
+import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis } from "recharts";
 import { Link } from "react-router";
 
 const features = [
@@ -57,14 +62,54 @@ const steps = [
   },
 ];
 
-const previewRows = [
-  { name: "Pak Budi", paid: true },
-  { name: "Bu Siti", paid: true },
-  { name: "Pak Agus", paid: true },
-  { name: "Bu Dewi", paid: false },
-];
+function monthLabel(month: string) {
+  const [y, m] = month.split("-").map(Number);
+  return format(new Date(y, m - 1, 1), "MMMM yyyy", { locale: id });
+}
+
+function monthShortLabel(month: string) {
+  const [y, m] = month.split("-").map(Number);
+  return format(new Date(y, m - 1, 1), "MMM", { locale: id });
+}
+
+function formatRupiah(n: number) {
+  return new Intl.NumberFormat("id-ID", {
+    style: "currency",
+    currency: "IDR",
+    maximumFractionDigits: 0,
+  }).format(n);
+}
+
+function MiniTooltip({
+  active,
+  payload,
+}: {
+  active?: boolean;
+  payload?: ReadonlyArray<{ payload: { label: string; total: number } }>;
+}) {
+  if (!active || !payload || payload.length === 0) return null;
+  const item = payload[0].payload;
+  return (
+    <div className="rounded-lg border bg-background px-2.5 py-1.5 text-xs shadow-lg">
+      <p className="font-medium">{item.label}</p>
+      <p className="tabular-nums text-muted-foreground">
+        {formatRupiah(item.total)}
+      </p>
+    </div>
+  );
+}
 
 export default function Landing() {
+  const stats = useQuery(api.jimpitan.getPublicStats);
+  const chartData = (stats?.series ?? []).map((s) => ({
+    ...s,
+    label: monthShortLabel(s.month),
+  }));
+  const paidPct =
+    stats && stats.totalWarga > 0
+      ? Math.round((stats.latestPaid / stats.totalWarga) * 100)
+      : 0;
+
   return (
     <div className="min-h-screen bg-background text-foreground">
       {/* Navbar */}
@@ -146,55 +191,112 @@ export default function Landing() {
                     <p className="text-xs font-medium text-muted-foreground">
                       Bulan ini
                     </p>
-                    <p className="mt-0.5 text-sm font-bold">Agustus 2026</p>
+                    <p className="mt-0.5 text-sm font-bold">
+                      {stats?.latestMonth
+                        ? monthLabel(stats.latestMonth)
+                        : "Belum ada data"}
+                    </p>
                   </div>
                   <Badge
                     variant="outline"
-                    className="border-transparent bg-emerald-500/10 text-emerald-600"
+                    className="border-transparent bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
                   >
-                    25/30 lunas
+                    {stats
+                      ? `${stats.latestPaid}/${stats.totalWarga} lunas`
+                      : "Memuat…"}
                   </Badge>
                 </CardHeader>
                 <CardContent className="px-5 py-5">
-                  <div className="flex items-end justify-between">
-                    <div>
-                      <p className="text-xs text-muted-foreground">
-                        Terkumpul bulan ini
+                  {!stats ? (
+                    <div className="space-y-4" aria-busy="true">
+                      <div className="h-8 w-2/3 animate-pulse rounded-lg bg-muted" />
+                      <div className="h-2 w-full animate-pulse rounded-full bg-muted" />
+                      <div className="h-24 w-full animate-pulse rounded-xl bg-muted" />
+                    </div>
+                  ) : stats.latestMonth === null ? (
+                    <div className="py-6 text-center">
+                      <HandCoins className="mx-auto size-8 text-muted-foreground" />
+                      <p className="mt-3 text-sm font-semibold">
+                        Belum ada catatan jimpitan
                       </p>
-                      <p className="mt-1 text-2xl font-extrabold tracking-tight tabular-nums">
-                        Rp 1.250.000
+                      <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+                        Data real akan tampil di sini begitu pengurus mulai
+                        mencatat pembayaran.
                       </p>
                     </div>
-                    <div className="text-right text-xs text-muted-foreground">
-                      <p>Belum bayar</p>
-                      <p className="mt-1 text-lg font-bold text-foreground">
-                        5 warga
-                      </p>
-                    </div>
-                  </div>
-                  <div className="mt-4 h-2 overflow-hidden rounded-full bg-muted">
-                    <div className="h-full w-[83%] rounded-full bg-primary" />
-                  </div>
-                  <div className="mt-5 space-y-2">
-                    {previewRows.map((row) => (
-                      <div
-                        key={row.name}
-                        className="flex items-center justify-between rounded-lg border px-3 py-2"
-                      >
-                        <span className="text-sm font-medium">{row.name}</span>
-                        {row.paid ? (
-                          <span className="flex items-center gap-1.5 text-xs font-medium text-emerald-600">
-                            <CheckCircle2 className="size-3.5" /> Lunas
-                          </span>
-                        ) : (
-                          <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                            <span className="size-3.5 rounded-full border border-dashed border-muted-foreground/50" />
-                            Belum
-                          </span>
-                        )}
+                  ) : (
+                    <>
+                      <div className="flex items-end justify-between">
+                        <div>
+                          <p className="text-xs text-muted-foreground">
+                            Terkumpul bulan ini
+                          </p>
+                          <p className="mt-1 text-2xl font-extrabold tracking-tight tabular-nums">
+                            {formatRupiah(stats.latestTotal)}
+                          </p>
+                        </div>
+                        <div className="text-right text-xs text-muted-foreground">
+                          <p>Belum bayar</p>
+                          <p className="mt-1 text-lg font-bold text-foreground">
+                            {stats.latestUnpaid} warga
+                          </p>
+                        </div>
                       </div>
-                    ))}
-                  </div>
+                      <div className="mt-4 h-2 overflow-hidden rounded-full bg-muted">
+                        <div
+                          className="h-full rounded-full bg-primary transition-all duration-500"
+                          style={{ width: `${paidPct}%` }}
+                        />
+                      </div>
+                      <p className="mt-1.5 text-xs text-muted-foreground">
+                        {stats.latestPaid} dari {stats.totalWarga} warga sudah
+                        lunas ({paidPct}%)
+                      </p>
+                      {chartData.length > 0 && (
+                        <div className="mt-4">
+                          <p className="text-xs text-muted-foreground">
+                            6 bulan terakhir
+                          </p>
+                          <div className="mt-2 h-24">
+                            <ResponsiveContainer width="100%" height="100%">
+                              <BarChart
+                                data={chartData}
+                                margin={{
+                                  top: 4,
+                                  right: 0,
+                                  left: 0,
+                                  bottom: 0,
+                                }}
+                              >
+                                <XAxis dataKey="label" hide />
+                                <Tooltip
+                                  content={<MiniTooltip />}
+                                  cursor={{
+                                    fill: "var(--muted)",
+                                    opacity: 0.4,
+                                  }}
+                                />
+                                <Bar
+                                  dataKey="total"
+                                  fill="var(--primary)"
+                                  radius={[4, 4, 0, 0]}
+                                  maxBarSize={26}
+                                />
+                              </BarChart>
+                            </ResponsiveContainer>
+                          </div>
+                        </div>
+                      )}
+                      <div className="mt-4 flex items-center justify-between border-t pt-3 text-xs">
+                        <span className="text-muted-foreground">
+                          Total kas terkumpul
+                        </span>
+                        <span className="font-bold tabular-nums">
+                          {formatRupiah(stats.grandTotal)}
+                        </span>
+                      </div>
+                    </>
+                  )}
                 </CardContent>
               </Card>
             </motion.div>
@@ -247,7 +349,10 @@ export default function Landing() {
         </section>
 
         {/* How it works */}
-        <section id="cara-kerja" className="mx-auto w-full max-w-6xl scroll-mt-20 px-4 py-16 sm:px-6 sm:py-20">
+        <section
+          id="cara-kerja"
+          className="mx-auto w-full max-w-6xl scroll-mt-20 px-4 py-16 sm:px-6 sm:py-20"
+        >
           <motion.div
             initial={{ opacity: 0, y: 16 }}
             whileInView={{ opacity: 1, y: 0 }}
@@ -304,9 +409,13 @@ export default function Landing() {
                 </h2>
                 <p className="max-w-md text-sm text-muted-foreground">
                   Mulai gratis — login dengan username{" "}
-                  <span className="font-mono font-semibold text-foreground">admin</span>{" "}
+                  <span className="font-mono font-semibold text-foreground">
+                    admin
+                  </span>{" "}
                   dan password{" "}
-                  <span className="font-mono font-semibold text-foreground">admin</span>{" "}
+                  <span className="font-mono font-semibold text-foreground">
+                    admin
+                  </span>{" "}
                   untuk menjadi admin RT.
                 </p>
                 <Button asChild size="lg">

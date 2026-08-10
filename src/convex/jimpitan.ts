@@ -235,3 +235,80 @@ export const getMonthlySeries = query({
     };
   },
 });
+
+/**
+ * Public aggregates for the landing page (beranda): totals, latest month
+ * credit-aware status, and the last 6 months of collections. Returns numbers
+ * only — no warga names or per-warga details — so it is safe for visitors.
+ */
+export const getPublicStats = query({
+  args: {},
+  handler: async (ctx) => {
+    const [allPayments, wargaList] = await Promise.all([
+      ctx.db.query("jimpitan").collect(),
+      ctx.db
+        .query("users")
+        .filter((q) => q.eq(q.field("role"), ROLES.WARGA))
+        .collect(),
+    ]);
+
+    const byMonth = new Map<string, number>();
+    let grandTotal = 0;
+    for (const p of allPayments) {
+      byMonth.set(p.month, (byMonth.get(p.month) ?? 0) + p.nominal);
+      grandTotal += p.nominal;
+    }
+    const months = [...byMonth.keys()].sort();
+    const latestMonth = months.length > 0 ? months[months.length - 1] : null;
+
+    // Credit-aware count of warga who covered the latest month (same rule as
+    // getOverview: kelebihan from earlier payments can carry over).
+    let latestPaid = 0;
+    if (latestMonth) {
+      const targetIdx = monthIndex(latestMonth);
+      type JimpitanDoc = (typeof allPayments)[number];
+      const historyByWarga = new Map<string, JimpitanDoc[]>(
+        wargaList.map((w) => [w._id, []]),
+      );
+      for (const p of allPayments) {
+        historyByWarga.get(p.wargaId)?.push(p);
+      }
+      for (const w of wargaList) {
+        const history = historyByWarga.get(w._id) ?? [];
+        if (history.length === 0) continue;
+        let startIdx: number | null = null;
+        let paidBefore = 0;
+        for (const p of history) {
+          const idx = monthIndex(p.month);
+          if (startIdx === null || idx < startIdx) startIdx = idx;
+          if (p.month < latestMonth) paidBefore += p.nominal;
+        }
+        const paidAt =
+          history.find((p) => p.month === latestMonth)?.nominal ?? 0;
+        const saldoBefore =
+          startIdx === null
+            ? 0
+            : paidBefore -
+              Math.max(0, targetIdx - startIdx) * JIMPITAN_PER_BULAN;
+        if (saldoBefore + paidAt >= JIMPITAN_PER_BULAN) latestPaid++;
+      }
+    }
+
+    const series = months.slice(-6).map((month) => ({
+      month,
+      total: byMonth.get(month) ?? 0,
+    }));
+
+    return {
+      grandTotal,
+      totalWarga: wargaList.length,
+      monthsCount: months.length,
+      latestMonth,
+      latestTotal: latestMonth ? byMonth.get(latestMonth) ?? 0 : 0,
+      latestPaid,
+      latestUnpaid: Math.max(0, wargaList.length - latestPaid),
+      targetPerMonth: wargaList.length * JIMPITAN_PER_BULAN,
+      series,
+    };
+  },
+});
