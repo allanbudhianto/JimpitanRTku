@@ -1436,7 +1436,7 @@ function PayDialog({
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>
-            {payment ? "Perbarui pembayaran" : "Catat pembayaran"}
+            {payment ? "Perbarui pembayaran" : "Bayar jimpitan"}
           </DialogTitle>
           <DialogDescription>
             {warga.name} — {monthLabel(month)}
@@ -1704,7 +1704,16 @@ export default function Dashboard() {
       (!lowerQuery ||
         r.warga.name.toLowerCase().includes(lowerQuery) ||
         (r.warga.noRumah || "").toLowerCase().includes(lowerQuery) ||
-        (r.warga.alamat || "").toLowerCase().includes(lowerQuery)),
+        (r.warga.alamat || "").toLowerCase().includes(lowerQuery) ||
+        (r.payment
+          ? [
+              formatDate(r.payment.recordedAt),
+              new Date(r.payment.recordedAt).toLocaleDateString("id-ID"),
+            ]
+              .join(" ")
+              .toLowerCase()
+              .includes(lowerQuery)
+          : false)),
   );
 
   return (
@@ -2243,7 +2252,7 @@ export default function Dashboard() {
             <div className="relative w-full sm:w-56">
               <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
               <Input
-                placeholder="Cari warga…"
+                placeholder="Cari warga atau tanggal…"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="h-8 pl-8 text-sm"
@@ -2294,7 +2303,7 @@ export default function Dashboard() {
                   <TableRow className="hover:bg-transparent">
                     <TableHead className="w-10 pl-4 pr-1 sm:pl-6">No</TableHead>
                     <TableHead>Warga</TableHead>
-                    <TableHead className="hidden sm:table-cell">Rumah</TableHead>
+                    <TableHead className="hidden sm:table-cell">Tanggal</TableHead>
                     <TableHead className="text-right">Nominal</TableHead>
                     <TableHead className="hidden text-right sm:table-cell">
                       Saldo
@@ -2325,11 +2334,19 @@ export default function Dashboard() {
                           )}
                         </div>
                         <span className="text-xs text-muted-foreground sm:hidden">
-                          {row.warga.noRumah || row.warga.alamat || "—"}
+                          {row.payment
+                            ? formatDate(row.payment.recordedAt)
+                            : "—"}
                         </span>
                       </TableCell>
-                      <TableCell className="hidden text-muted-foreground sm:table-cell">
-                        {row.warga.noRumah || row.warga.alamat || "—"}
+                      <TableCell className="hidden sm:table-cell">
+                        {row.payment ? (
+                          <span className="tabular-nums">
+                            {formatDate(row.payment.recordedAt)}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
                       </TableCell>
                       <TableCell className="text-right font-semibold tabular-nums">
                         {row.payment ? (
@@ -2414,11 +2431,11 @@ export default function Dashboard() {
                               ) : (
                                 <>
                                   <Plus className="size-3.5" />
-                                  Catat
+                                  Bayar
                                 </>
                               )}
                             </Button>
-                            {isAdmin && row.payment && (
+                            {canRecord && row.payment && (
                               <Button
                                 variant="ghost"
                                 size="icon-sm"
