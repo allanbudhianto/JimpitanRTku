@@ -108,3 +108,50 @@ CREATE TABLE `jimpitan_rekap` (
   UNIQUE KEY `uq_warga_bulan` (`warga_id`, `bulan`),
   KEY `idx_bulan` (`bulan`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================
+-- DATA — isi database saat ini (diekspor dari Convex)
+--   Waktu ekspor: 2026-08-14 04:33:48 (UTC)
+--   Catatan: _creationTime Convex (epoch ms) disimpan sebagai
+--   DATETIME UTC. Akun tanpa username/role (mis. akun email dan
+--   sesi anonim) tidak ikut diekspor karena tidak dapat login.
+-- ============================================================
+
+-- ------------------------------------------------------------
+-- Data: users
+-- ------------------------------------------------------------
+-- 1: Admin RT (admin, admin) -> Convex id jx78ts98sc4r7t7yea70jrn98x8c7akz
+-- 2: Sari (sari, pengurus) -> Convex id jx7f4w0stnzba3becn3a2a64h58c7dv8
+-- 3: Sunaryo (sunaryo, warga) -> Convex id jx73wq9nscqg24avjetb3ecdb18c7hap
+-- 4: Tata (galih, warga) -> Convex id jx71evfx3xwcc6zrh112yc2vj98c7zwd
+INSERT INTO `users` (`id`, `username`, `name`, `role`, `alamat`, `no_rumah`, `created_at`) VALUES
+(1, 'admin', 'Admin RT', 'admin', NULL, NULL, '2026-08-10 04:52:25'),
+(2, 'sari', 'Sari', 'pengurus', NULL, NULL, '2026-08-10 04:54:11'),
+(3, 'sunaryo', 'Sunaryo', 'warga', '03', '13', '2026-08-10 06:07:19'),
+(4, 'galih', 'Tata', 'warga', '03', '12', '2026-08-10 06:14:12');
+
+-- ------------------------------------------------------------
+-- Data: jimpitan (pembayaran iuran bulanan per warga)
+-- ------------------------------------------------------------
+-- k171pj5wgc52rts3seh43da72s8c67rg: Sunaryo (2026-08) Rp 15000 -> Convex id k171pj5wgc52rts3seh43da72s8c67rg
+-- k17b6vx51dftqvhdk3y5tmn2x58c7fq4: Tata (2026-08) Rp 60000 -> Convex id k17b6vx51dftqvhdk3y5tmn2x58c7fq4
+INSERT INTO `jimpitan` (`id`, `warga_id`, `month`, `nominal`, `recorded_by_id`, `note`, `created_at`) VALUES
+(1, 3, '2026-08', 15000, 1, 'tunai', '2026-08-10 06:37:00'),
+(2, 4, '2026-08', 60000, 1, 'tunai', '2026-08-10 06:15:33');
+
+-- ------------------------------------------------------------
+-- Data: pengeluaran
+-- ------------------------------------------------------------
+-- (tidak ada data)
+
+-- ------------------------------------------------------------
+-- Data: settings (QRIS)
+-- ------------------------------------------------------------
+-- (tidak ada data)
+
+-- ------------------------------------------------------------
+-- Data: jimpitan_rekap (hasil ekspor action planetscale.exportRekap)
+-- ------------------------------------------------------------
+INSERT INTO `jimpitan_rekap` (`warga_id`, `nama`, `no_rumah`, `alamat`, `bulan`, `nominal`, `dicatat_oleh`, `dicatat_pada`, `catatan`) VALUES
+('jx73wq9nscqg24avjetb3ecdb18c7hap', 'Sunaryo', '13', '03', '2026-08', 15000, 'Admin RT', '2026-08-10 06:37:00', 'tunai'),
+('jx71evfx3xwcc6zrh112yc2vj98c7zwd', 'Tata', '12', '03', '2026-08', 60000, 'Admin RT', '2026-08-10 06:15:33', 'tunai');
