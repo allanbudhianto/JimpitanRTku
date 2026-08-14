@@ -88,6 +88,7 @@ import {
   Receipt,
   Settings2,
   Trash2,
+  Upload,
   UserRoundPlus,
   Users,
   Wallet,
@@ -1682,6 +1683,34 @@ export default function Dashboard() {
     }
   };
 
+  const exportRekap = useAction(api.planetscale.exportRekap);
+  const [exportStatus, setExportStatus] = useState<{
+    ok: boolean;
+    exported?: number;
+    total?: number;
+    table?: string;
+    database?: string;
+    message?: string;
+  } | null>(null);
+  const [exporting, setExporting] = useState(false);
+
+  const handleExportRekap = async () => {
+    setExporting(true);
+    setExportStatus(null);
+    try {
+      const res = await exportRekap();
+      setExportStatus(res);
+    } catch (err) {
+      setExportStatus({
+        ok: false,
+        message:
+          err instanceof Error ? err.message : "Gagal mengekspor rekap.",
+      });
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const role = user?.role ?? null;
   const isAdmin = role === ROLES.ADMIN;
   const canRecord = isAdmin || role === ROLES.PENGGURUS;
@@ -2055,24 +2084,43 @@ export default function Dashboard() {
                   Uji koneksi ke database MySQL PlanetScale dari server.
                 </CardDescription>
               </div>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={handleTestDb}
-                disabled={dbTesting}
-              >
-                {dbTesting ? (
-                  <>
-                    <Loader2 className="size-4 animate-spin" />
-                    Menguji...
-                  </>
-                ) : (
-                  <>
-                    <Database className="size-4" />
-                    Tes koneksi
-                  </>
-                )}
-              </Button>
+              <div className="flex shrink-0 flex-col gap-2 sm:flex-row sm:items-center">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleTestDb}
+                  disabled={dbTesting}
+                >
+                  {dbTesting ? (
+                    <>
+                      <Loader2 className="size-4 animate-spin" />
+                      Menguji...
+                    </>
+                  ) : (
+                    <>
+                      <Database className="size-4" />
+                      Tes koneksi
+                    </>
+                  )}
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={handleExportRekap}
+                  disabled={exporting}
+                >
+                  {exporting ? (
+                    <>
+                      <Loader2 className="size-4 animate-spin" />
+                      Mengekspor...
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="size-4" />
+                      Ekspor rekap
+                    </>
+                  )}
+                </Button>
+              </div>
             </CardHeader>
             <CardContent>
               {!dbStatus && (
@@ -2106,6 +2154,42 @@ export default function Dashboard() {
                   <CircleDashed className="mt-0.5 size-4 shrink-0" />
                   {dbStatus.message}
                 </p>
+              )}
+              {exportStatus && (
+                <div className="mt-3 rounded-lg border bg-muted/40 px-3 py-2.5 text-sm">
+                  {exportStatus.ok ? (
+                    <p className="flex items-start gap-2 text-emerald-600">
+                      <CheckCircle2 className="mt-0.5 size-4 shrink-0" />
+                      <span>
+                        Rekap berhasil diekspor:{" "}
+                        <strong>{exportStatus.exported}</strong> baris
+                        {exportStatus.total !== undefined && (
+                          <>
+                            {" "}
+                            · total {exportStatus.total} baris di tabel{" "}
+                            <code className="rounded bg-muted px-1 font-mono text-xs">
+                              {exportStatus.table}
+                            </code>
+                          </>
+                        )}
+                        {exportStatus.database && (
+                          <>
+                            {" "}
+                            · database{" "}
+                            <span className="font-medium">
+                              {exportStatus.database}
+                            </span>
+                          </>
+                        )}
+                      </span>
+                    </p>
+                  ) : (
+                    <p className="flex items-start gap-2 text-destructive">
+                      <CircleDashed className="mt-0.5 size-4 shrink-0" />
+                      {exportStatus.message}
+                    </p>
+                  )}
+                </div>
               )}
             </CardContent>
           </Card>
