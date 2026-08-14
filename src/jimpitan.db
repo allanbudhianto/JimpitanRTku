@@ -1,0 +1,110 @@
+-- ============================================================
+-- JIMPITAN RT — Database MySQL (jimpitan.db)
+-- ------------------------------------------------------------
+-- Skema database untuk aplikasi website Jimpitan RT.
+-- Data utama aplikasi tersimpan di Convex; file ini adalah
+-- skema MySQL (mis. untuk PlanetScale / export rekap).
+--
+-- Cara import di MySQL:
+--   mysql -u root -p < src/jimpitan.db
+-- atau di klien (phpMyAdmin / MySQL Workbench): import file ini.
+-- ============================================================
+
+CREATE DATABASE IF NOT EXISTS `jimpitan`
+  CHARACTER SET utf8mb4
+  COLLATE utf8mb4_unicode_ci;
+
+USE `jimpitan`;
+
+-- ------------------------------------------------------------
+-- 1) users — pengguna aplikasi (admin, pengurus, warga)
+-- ------------------------------------------------------------
+DROP TABLE IF EXISTS `users`;
+
+CREATE TABLE `users` (
+  `id`            BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `username`      VARCHAR(30)  NOT NULL COMMENT 'Username login',
+  `name`          VARCHAR(255) NOT NULL COMMENT 'Nama lengkap',
+  `role`          ENUM('admin','pengurus','warga') NOT NULL DEFAULT 'warga',
+  `alamat`        VARCHAR(255)  DEFAULT NULL COMMENT 'Alamat warga',
+  `no_rumah`      VARCHAR(32)   DEFAULT NULL COMMENT 'Nomor rumah warga',
+  `created_at`    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_username` (`username`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ------------------------------------------------------------
+-- 2) jimpitan — pembayaran iuran bulanan per warga
+--    Satu baris per warga per bulan ("YYYY-MM").
+-- ------------------------------------------------------------
+DROP TABLE IF EXISTS `jimpitan`;
+
+CREATE TABLE `jimpitan` (
+  `id`             BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `warga_id`       BIGINT UNSIGNED NOT NULL COMMENT 'FK -> users.id',
+  `month`          CHAR(7)      NOT NULL COMMENT 'Bulan pembayaran, format YYYY-MM',
+  `nominal`        INT UNSIGNED NOT NULL COMMENT 'Nominal yang dibayar (Rp)',
+  `recorded_by_id` BIGINT UNSIGNED NOT NULL COMMENT 'FK -> users.id (pencatat)',
+  `note`           VARCHAR(255)  DEFAULT NULL COMMENT 'Catatan pembayaran',
+  `created_at`     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_warga_bulan` (`warga_id`, `month`),
+  KEY `idx_month` (`month`),
+  CONSTRAINT `fk_jimpitan_warga` FOREIGN KEY (`warga_id`) REFERENCES `users` (`id`),
+  CONSTRAINT `fk_jimpitan_pencatat` FOREIGN KEY (`recorded_by_id`) REFERENCES `users` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ------------------------------------------------------------
+-- 3) pengeluaran — pengeluaran kas RT
+--    Saldo kas = total terkumpul - total pengeluaran.
+-- ------------------------------------------------------------
+DROP TABLE IF EXISTS `pengeluaran`;
+
+CREATE TABLE `pengeluaran` (
+  `id`             BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `nominal`        INT UNSIGNED NOT NULL COMMENT 'Nominal pengeluaran (Rp)',
+  `alasan`         VARCHAR(255) NOT NULL COMMENT 'Alasan pengeluaran',
+  `recorded_by_id` BIGINT UNSIGNED NOT NULL COMMENT 'FK -> users.id (pencatat)',
+  `created_at`     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_pengeluaran_pencatat` (`recorded_by_id`),
+  CONSTRAINT `fk_pengeluaran_pencatat` FOREIGN KEY (`recorded_by_id`) REFERENCES `users` (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ------------------------------------------------------------
+-- 4) settings — pengaturan aplikasi (mis. QRIS)
+-- ------------------------------------------------------------
+DROP TABLE IF EXISTS `settings`;
+
+CREATE TABLE `settings` (
+  `id`               BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `setting_key`      VARCHAR(32) NOT NULL COMMENT 'Kunci pengaturan, mis. "qris"',
+  `qris_payload`     TEXT          DEFAULT NULL COMMENT 'String QRIS merchant (mulai 000201)',
+  `qris_merchant_name` VARCHAR(255) DEFAULT NULL COMMENT 'Nama merchant / atas nama',
+  `qris_active`      TINYINT(1)   NOT NULL DEFAULT 0 COMMENT 'Aktifkan pembayaran QRIS',
+  `updated_at`       TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_setting_key` (`setting_key`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ------------------------------------------------------------
+-- 5) jimpitan_rekap — tabel hasil ekspor rekap iuran ke PlanetScale
+--    (dibuat otomatis oleh action `planetscale.exportRekap`)
+-- ------------------------------------------------------------
+DROP TABLE IF EXISTS `jimpitan_rekap`;
+
+CREATE TABLE `jimpitan_rekap` (
+  `id`             BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `warga_id`       VARCHAR(64) NOT NULL COMMENT 'ID warga di Convex',
+  `nama`           VARCHAR(255) NOT NULL,
+  `no_rumah`       VARCHAR(32)   DEFAULT NULL,
+  `alamat`         VARCHAR(255)  DEFAULT NULL,
+  `bulan`          CHAR(7)      NOT NULL COMMENT 'Bulan, format YYYY-MM',
+  `nominal`        INT NOT NULL COMMENT 'Nominal yang dibayar (Rp)',
+  `dicatat_oleh`   VARCHAR(255)  DEFAULT NULL COMMENT 'Nama pencatat',
+  `dicatat_pada`   DATETIME      DEFAULT NULL COMMENT 'Waktu input pembayaran',
+  `catatan`        VARCHAR(255)  DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_warga_bulan` (`warga_id`, `bulan`),
+  KEY `idx_bulan` (`bulan`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
