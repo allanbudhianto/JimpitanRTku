@@ -67,7 +67,7 @@ import {
 import { useAuth } from "@/hooks/use-auth";
 import { format } from "date-fns";
 import { id } from "date-fns/locale";
-import { useMutation, useQuery } from "convex/react";
+import { useAction, useMutation, useQuery } from "convex/react";
 import {
   BarChart3,
   CalendarDays,
@@ -75,6 +75,7 @@ import {
   ChevronLeft,
   ChevronRight,
   CircleDashed,
+  Database,
   HandCoins,
   KeyRound,
   Landmark,
@@ -1652,6 +1653,35 @@ export default function Dashboard() {
   const [filter, setFilter] = useState<"semua" | "lunas" | "belum">("semua");
   const [searchQuery, setSearchQuery] = useState("");
 
+  const testDb = useAction(api.planetscale.testConnection);
+  const [dbStatus, setDbStatus] = useState<{
+    configured: boolean;
+    ok: boolean;
+    message?: string;
+    version?: string | null;
+    database?: string | null;
+    serverTime?: string | null;
+  } | null>(null);
+  const [dbTesting, setDbTesting] = useState(false);
+
+  const handleTestDb = async () => {
+    setDbTesting(true);
+    setDbStatus(null);
+    try {
+      const res = await testDb();
+      setDbStatus(res);
+    } catch (err) {
+      setDbStatus({
+        configured: true,
+        ok: false,
+        message:
+          err instanceof Error ? err.message : "Gagal menguji koneksi.",
+      });
+    } finally {
+      setDbTesting(false);
+    }
+  };
+
   const role = user?.role ?? null;
   const isAdmin = role === ROLES.ADMIN;
   const canRecord = isAdmin || role === ROLES.PENGGURUS;
@@ -2010,6 +2040,75 @@ export default function Dashboard() {
 
         {qris && (
           <QrisDialog qris={qris} open={qrisOpen} onOpenChange={setQrisOpen} />
+        )}
+
+        {/* Koneksi PlanetScale */}
+        {canRecord && (
+          <Card className="mt-6 shadow-sm">
+            <CardHeader className="flex-row items-center justify-between gap-4">
+              <div>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Database className="size-4 text-primary" />
+                  Koneksi PlanetScale
+                </CardTitle>
+                <CardDescription>
+                  Uji koneksi ke database MySQL PlanetScale dari server.
+                </CardDescription>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleTestDb}
+                disabled={dbTesting}
+              >
+                {dbTesting ? (
+                  <>
+                    <Loader2 className="size-4 animate-spin" />
+                    Menguji...
+                  </>
+                ) : (
+                  <>
+                    <Database className="size-4" />
+                    Tes koneksi
+                  </>
+                )}
+              </Button>
+            </CardHeader>
+            <CardContent>
+              {!dbStatus && (
+                <p className="text-sm text-muted-foreground">
+                  Belum diuji. Klik &quot;Tes koneksi&quot; untuk memeriksa
+                  koneksi ke PlanetScale.
+                </p>
+              )}
+              {dbStatus && !dbStatus.configured && (
+                <p className="flex items-center gap-2 text-sm text-amber-600">
+                  <CircleDashed className="size-4 shrink-0" />
+                  {dbStatus.message}
+                </p>
+              )}
+              {dbStatus && dbStatus.configured && dbStatus.ok && (
+                <div className="space-y-1.5">
+                  <p className="flex items-center gap-2 text-sm font-medium text-emerald-600">
+                    <CheckCircle2 className="size-4" />
+                    Terhubung ke PlanetScale
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    Server MySQL {dbStatus.version} · database{" "}
+                    <span className="font-medium text-foreground">
+                      {dbStatus.database}
+                    </span>
+                  </p>
+                </div>
+              )}
+              {dbStatus && dbStatus.configured && !dbStatus.ok && (
+                <p className="flex items-start gap-2 text-sm text-destructive">
+                  <CircleDashed className="mt-0.5 size-4 shrink-0" />
+                  {dbStatus.message}
+                </p>
+              )}
+            </CardContent>
+          </Card>
         )}
 
         {/* Pengeluaran kas */}
