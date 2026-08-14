@@ -270,3 +270,17 @@ When using convex, make sure:
 - This includes importing generated files like `@/convex/_generated/server`, `@/convex/_generated/api`
 - Remember to import functions like useQuery, useMutation, useAction, etc. from `convex/react`
 - NEVER have return type validators.
+
+# Versi PHP + MySQL untuk XAMPP
+
+Aplikasi ini juga tersedia dalam versi **PHP murni + MySQL** yang bisa
+langsung dijalankan di **XAMPP** (tanpa Node.js / Convex), lengkap dengan
+semua fitur: login admin/pengurus/warga, input & edit iuran bulanan,
+pengeluaran kas, QRIS, dan rekap.
+
+- Kode ada di folder **`jimpitan-php/`**
+- Panduan pemasangan: **`jimpitan-php/README-XAMPP.md`**
+- Instalasi: salin folder `jimpitan-php` ke `htdocs`, jalankan `setup.php`
+  (atau import `jimpitan.sql` lewat phpMyAdmin), lalu login dengan
+  `admin/admin`.
+
