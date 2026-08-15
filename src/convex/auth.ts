@@ -2,7 +2,7 @@
 // provider below. The reserved admin account (username "admin", password
 // "admin") is bootstrapped on first login, when no such account exists yet.
 // Warga and pengurus are pre-registered by the admin via users.addUser, which
-// stores the same scrypt secret (authAccounts.secret) that authorize()
+// stores the same secret (authAccounts.secret) that authorize()
 // verifies here.
 
 import { ConvexCredentials } from "@convex-dev/auth/providers/ConvexCredentials";
@@ -11,10 +11,22 @@ import {
   createAccount,
   retrieveAccount,
 } from "@convex-dev/auth/server";
-import { Scrypt } from "lucia";
 
 const ADMIN_USERNAME = "admin";
 const PROVIDER_ID = "password";
+
+export async function hashSecret(secret: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const data = encoder.encode("jimpitan_rt_salt_" + secret);
+  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+export async function verifySecret(hash: string, secret: string): Promise<boolean> {
+  const calculated = await hashSecret(secret);
+  return calculated === hash;
+}
 
 function normalizeUsername(raw: string) {
   return raw.trim().toLowerCase();
@@ -24,10 +36,9 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
   providers: [
     ConvexCredentials({
       id: PROVIDER_ID,
-      // The framework hashes/verifies account secrets with these functions.
       crypto: {
-        hashSecret: (secret) => new Scrypt().hash(secret),
-        verifySecret: (secret, hash) => new Scrypt().verify(hash, secret),
+        hashSecret: (secret) => hashSecret(secret),
+        verifySecret: (secret, hash) => verifySecret(hash, secret),
       },
       authorize: async (credentials, ctx) => {
         const username = normalizeUsername(String(credentials.username ?? ""));

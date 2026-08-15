@@ -1,7 +1,7 @@
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { mutation, query, QueryCtx } from "./_generated/server";
 import { v } from "convex/values";
-import { Scrypt } from "lucia";
+import { hashSecret, verifySecret } from "./auth";
 import { ROLES, type Role } from "./schema";
 
 /**
@@ -104,10 +104,10 @@ export const changeOwnPassword = mutation({
     if (!account) throw new Error("Akun login tidak ditemukan.");
     if (!account.secret) throw new Error("Akun login tidak ditemukan.");
 
-    const valid = await new Scrypt().verify(account.secret, currentPassword);
+    const valid = await verifySecret(account.secret, currentPassword);
     if (!valid) throw new Error("Password lama salah.");
 
-    const secret = await new Scrypt().hash(newPassword);
+    const secret = await hashSecret(newPassword);
     await ctx.db.patch(account._id, { secret });
     return true;
   },
@@ -139,7 +139,7 @@ export const changeUserPassword = mutation({
       .first();
     if (!account) throw new Error("Akun login tidak ditemukan.");
 
-    const secret = await new Scrypt().hash(password);
+    const secret = await hashSecret(password);
     await ctx.db.patch(account._id, { secret });
     return true;
   },
@@ -299,7 +299,7 @@ export const addUser = mutation({
       role,
     });
 
-    const secret = await new Scrypt().hash(password);
+    const secret = await hashSecret(password);
     await ctx.db.insert("authAccounts", {
       userId,
       provider: "password",
