@@ -5,6 +5,7 @@ import {
   retrieveAccount,
 } from "@convex-dev/auth/server";
 import { hashSecret, verifySecret } from "./crypto";
+import { api } from "./_generated/api";
 
 export { hashSecret, verifySecret };
 
@@ -30,6 +31,7 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
           throw new Error("Username dan password wajib diisi.");
         }
 
+        // 1. Try normal login
         try {
           const { user } = await retrieveAccount(ctx, {
             provider: PROVIDER_ID,
@@ -37,12 +39,16 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
           });
           return { userId: user._id };
         } catch (err) {
-          // If login fails and this is admin/admin, attempt initial bootstrap
+          // 2. If login fails and this is admin/admin, auto-reset and create fresh admin
           if (username === ADMIN_USERNAME && password === ADMIN_USERNAME) {
             try {
+              // Wipe any broken admin account from database automatically
+              await ctx.runMutation(api.users.resetAdmin, {});
+
+              // Create fresh admin account
               const { user } = await createAccount(ctx, {
                 provider: PROVIDER_ID,
-                account: { id: username, secret: password },
+                account: { id: ADMIN_USERNAME, secret: password },
                 profile: {
                   username: ADMIN_USERNAME,
                   name: "Admin RT",
@@ -50,8 +56,9 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
                 },
               });
               return { userId: user._id };
-            } catch {
-              throw new Error("Akun admin sudah ada tetapi password tidak cocok.");
+            } catch (createErr) {
+              console.error("Failed to bootstrap admin account:", createErr);
+              throw new Error("Gagal membuat akun admin. Silakan coba lagi.");
             }
           }
 

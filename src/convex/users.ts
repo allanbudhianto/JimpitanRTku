@@ -1,8 +1,35 @@
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { mutation, query, QueryCtx } from "./_generated/server";
 import { v } from "convex/values";
-import { hashSecret, verifySecret } from "./auth";
+import { hashSecret, verifySecret } from "./crypto";
 import { ROLES, type Role } from "./schema";
+
+/**
+ * Reset and remove any corrupted admin records so fresh admin/admin can be created.
+ */
+export const resetAdmin = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const accounts = await ctx.db
+      .query("authAccounts")
+      .withIndex("providerAndAccountId", (q) =>
+        q.eq("provider", "password").eq("providerAccountId", "admin"),
+      )
+      .collect();
+    for (const acc of accounts) {
+      await ctx.db.delete(acc._id);
+    }
+    const users = await ctx.db
+      .query("users")
+      .withIndex("username", (q) => q.eq("username", "admin"))
+      .collect();
+    for (const u of users) {
+      await ctx.db.delete(u._id);
+    }
+    return true;
+  },
+});
+
 
 /**
  * Get the current signed in user. Returns null if the user is not signed in.
