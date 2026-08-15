@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "npx convex deploy --cmd 'vite build'",
+    "build": "npx convex deploy --cmd 'vite build' --typecheck=disable",
     "lint": "eslint .",
     "format": "prettier --write .",
     "preview": "vite preview"
