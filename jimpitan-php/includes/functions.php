@@ -175,7 +175,7 @@ function getQris(PDO $pdo): array
 function overviewForMonth(PDO $pdo, string $month): array
 {
     $warga = $pdo->query(
-        "SELECT id, name, alamat, no_rumah FROM users WHERE role = 'warga' ORDER BY name ASC"
+        "SELECT id, name FROM users WHERE role = 'warga' ORDER BY name ASC"
     )->fetchAll();
 
     $all = $pdo->query("SELECT * FROM jimpitan")->fetchAll();
@@ -409,7 +409,7 @@ function listRekap(PDO $pdo): array
 {
     $rows = $pdo->query(
         "SELECT j.id, j.month, j.nominal, j.note, j.created_at,
-                w.name AS nama, w.no_rumah, w.alamat,
+                w.name AS nama,
                 r.name AS dicatat_oleh
          FROM jimpitan j
          JOIN users w ON w.id = j.warga_id

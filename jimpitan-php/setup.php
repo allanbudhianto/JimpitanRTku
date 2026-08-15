@@ -39,8 +39,6 @@ try {
           `username` VARCHAR(30) NOT NULL,
           `name` VARCHAR(255) NOT NULL,
           `role` ENUM('admin','pengurus','warga') NOT NULL DEFAULT 'warga',
-          `alamat` VARCHAR(255) DEFAULT NULL,
-          `no_rumah` VARCHAR(32) DEFAULT NULL,
           `password_hash` VARCHAR(255) NOT NULL,
           `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
           PRIMARY KEY (`id`),
@@ -89,20 +87,35 @@ try {
     ");
     $messages[] = 'Tabel users, jimpitan, pengeluaran, settings siap.';
 
+    // Migrasi: hapus kolom lama no_rumah & alamat (bila masih ada di DB lama).
+    $dropCols = [];
+    $cols = $pdo->query(
+        "SELECT COLUMN_NAME FROM information_schema.COLUMNS
+         WHERE TABLE_SCHEMA = '" . DB_NAME . "' AND TABLE_NAME = 'users'
+           AND COLUMN_NAME IN ('no_rumah','alamat')"
+    )->fetchAll(PDO::FETCH_COLUMN);
+    foreach ($cols as $c) {
+        $dropCols[] = 'DROP COLUMN `' . $c . '`';
+    }
+    if ($dropCols) {
+        $pdo->exec('ALTER TABLE `users` ' . implode(', ', $dropCols));
+        $messages[] = 'Kolom lama ' . implode(' & ', $cols) . ' dihapus dari tabel users.';
+    }
+
     // Seed pengguna (hanya bila tabel kosong).
     $count = (int) $pdo->query('SELECT COUNT(*) FROM users')->fetchColumn();
     if ($count === 0) {
         $seed = [
-            ['admin', 'Admin RT', 'admin', null, null, 'admin'],
-            ['sari', 'Sari', 'pengurus', null, null, 'sari'],
-            ['sunaryo', 'Sunaryo', 'warga', '03', '13', 'sunaryo'],
-            ['galih', 'Tata', 'warga', '03', '12', 'galih'],
+            ['admin', 'Admin RT', 'admin', 'admin'],
+            ['sari', 'Sari', 'pengurus', 'sari'],
+            ['sunaryo', 'Sunaryo', 'warga', 'sunaryo'],
+            ['galih', 'Tata', 'warga', 'galih'],
         ];
         $stmt = $pdo->prepare(
-            'INSERT INTO users (username, name, role, alamat, no_rumah, password_hash) VALUES (?, ?, ?, ?, ?, ?)'
+            'INSERT INTO users (username, name, role, password_hash) VALUES (?, ?, ?, ?)'
         );
         foreach ($seed as $s) {
-            $stmt->execute([$s[0], $s[1], $s[2], $s[3], $s[4], password_hash($s[5], PASSWORD_DEFAULT)]);
+            $stmt->execute([$s[0], $s[1], $s[2], password_hash($s[3], PASSWORD_DEFAULT)]);
         }
         $messages[] = 'Data awal: admin/admin, sari/sari, sunaryo/sunaryo, galih/galih.';
     } else {

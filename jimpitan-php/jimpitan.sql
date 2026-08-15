@@ -34,8 +34,6 @@ CREATE TABLE `users` (
   `username`      VARCHAR(30)  NOT NULL COMMENT 'Username login',
   `name`          VARCHAR(255) NOT NULL COMMENT 'Nama lengkap',
   `role`          ENUM('admin','pengurus','warga') NOT NULL DEFAULT 'warga',
-  `alamat`        VARCHAR(255)  DEFAULT NULL COMMENT 'Alamat / RT warga',
-  `no_rumah`      VARCHAR(32)   DEFAULT NULL COMMENT 'Nomor rumah warga',
   `password_hash` VARCHAR(255) NOT NULL COMMENT 'Hash bcrypt (seed awal plaintext, di-upgrade otomatis)',
   `created_at`    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
@@ -97,11 +95,11 @@ CREATE TABLE `settings` (
 --   Sunaryo (warga): sunaryo/sunaryo | Tata (warga): galih/galih
 -- ============================================================
 
-INSERT INTO `users` (`id`, `username`, `name`, `role`, `alamat`, `no_rumah`, `password_hash`, `created_at`) VALUES
-(1, 'admin',   'Admin RT', 'admin',    NULL, NULL, 'admin',   '2026-08-10 04:52:25'),
-(2, 'sari',    'Sari',     'pengurus', NULL, NULL, 'sari',    '2026-08-10 04:54:11'),
-(3, 'sunaryo', 'Sunaryo',  'warga',    '03', '13', 'sunaryo', '2026-08-10 06:07:19'),
-(4, 'galih',   'Tata',     'warga',    '03', '12', 'galih',   '2026-08-10 06:14:12');
+INSERT INTO `users` (`id`, `username`, `name`, `role`, `password_hash`, `created_at`) VALUES
+(1, 'admin',   'Admin RT', 'admin',    'admin',   '2026-08-10 04:52:25'),
+(2, 'sari',    'Sari',     'pengurus', 'sari',    '2026-08-10 04:54:11'),
+(3, 'sunaryo', 'Sunaryo',  'warga',    'sunaryo', '2026-08-10 06:07:19'),
+(4, 'galih',   'Tata',     'warga',    'galih',   '2026-08-10 06:14:12');
 
 INSERT INTO `jimpitan` (`id`, `warga_id`, `month`, `nominal`, `recorded_by_id`, `note`, `created_at`) VALUES
 (1, 3, '2026-08', 15000, 1, 'tunai', '2026-08-10 06:37:00'),

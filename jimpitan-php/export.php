@@ -19,7 +19,7 @@ echo "\xEF\xBB\xBF";
 
 $out = fopen('php://output', 'w');
 
-fputcsv($out, ['No', 'Bulan', 'Nama', 'No Rumah', 'Alamat / RT', 'Nominal (Rp)', 'Dicatat Oleh', 'Tanggal Input', 'Catatan']);
+fputcsv($out, ['No', 'Bulan', 'Nama', 'Nominal (Rp)', 'Dicatat Oleh', 'Tanggal Input', 'Catatan']);
 
 $no = 1;
 foreach ($rows as $r) {
@@ -27,8 +27,6 @@ foreach ($rows as $r) {
         $no,
         $r['month'],
         $r['nama'],
-        $r['no_rumah'] ?? '',
-        $r['alamat'] ?? '',
         (int) $r['nominal'],
         $r['dicatat_oleh'],
         date('Y-m-d H:i', strtotime($r['created_at'])),

@@ -206,8 +206,6 @@ function add_or_edit_user(PDO $pdo, ?int $userId, array $input): void
     $name = mb_substr(trim((string) ($input['name'] ?? '')), 0, 255);
     $username = strtolower(trim((string) ($input['username'] ?? '')));
     $role = in_array($input['role'] ?? '', ['warga', 'pengurus'], true) ? $input['role'] : 'warga';
-    $alamat = mb_substr(trim((string) ($input['alamat'] ?? '')), 0, 255);
-    $noRumah = mb_substr(trim((string) ($input['no_rumah'] ?? '')), 0, 32);
 
     if (mb_strlen($name) < 2) {
         flash_set('error', 'Nama terlalu pendek.');
@@ -233,27 +231,23 @@ function add_or_edit_user(PDO $pdo, ?int $userId, array $input): void
             return;
         }
         $stmt = $pdo->prepare(
-            'INSERT INTO users (username, name, role, alamat, no_rumah, password_hash) VALUES (?, ?, ?, ?, ?, ?)'
+            'INSERT INTO users (username, name, role, password_hash) VALUES (?, ?, ?, ?)'
         );
         $stmt->execute([
             $username,
             $name,
             $role,
-            $role === 'warga' && $alamat !== '' ? $alamat : null,
-            $role === 'warga' && $noRumah !== '' ? $noRumah : null,
             password_hash($password, PASSWORD_DEFAULT),
         ]);
         flash_set('success', $role === 'warga' ? "Warga $name ditambahkan." : "Pengurus $name ditambahkan.");
     } else {
         $stmt = $pdo->prepare(
-            'UPDATE users SET username = ?, name = ?, role = ?, alamat = ?, no_rumah = ? WHERE id = ?'
+            'UPDATE users SET username = ?, name = ?, role = ? WHERE id = ?'
         );
         $stmt->execute([
             $username,
             $name,
             $role,
-            $role === 'warga' && $alamat !== '' ? $alamat : null,
-            $role === 'warga' && $noRumah !== '' ? $noRumah : null,
             $userId,
         ]);
         flash_set('success', "Data $name diperbarui.");
@@ -435,8 +429,7 @@ function render_jimpitan(array $user, PDO $pdo): void
         $needle = mb_strtolower($q);
         $rows = array_values(array_filter($rows, function ($r) use ($needle) {
             $name = mb_strtolower((string) $r['warga']['name']);
-            $no = mb_strtolower((string) $r['warga']['no_rumah']);
-            return str_contains($name, $needle) || str_contains($no, $needle);
+            return str_contains($name, $needle);
         }));
     }
     if ($status !== 'semua') {
@@ -474,7 +467,7 @@ function render_jimpitan(array $user, PDO $pdo): void
     echo '<form method="get" action="dashboard.php" class="filter-bar" style="padding:0;margin:0">';
     echo '<input type="hidden" name="view" value="jimpitan">';
     echo '<div class="form-row"><label for="f-month">Bulan</label><input class="input" type="month" id="f-month" name="month" value="' . e($month) . '"></div>';
-    echo '<div class="form-row grow"><label for="f-q">Cari nama / no. rumah</label><input class="input" id="f-q" name="q" value="' . e($q) . '" placeholder="cth: Sunaryo"></div>';
+    echo '<div class="form-row grow"><label for="f-q">Cari nama</label><input class="input" id="f-q" name="q" value="' . e($q) . '" placeholder="cth: Sunaryo"></div>';
     echo '<div class="form-row"><label for="f-status">Status</label><select class="input" id="f-status" name="status">'
         . '<option value="semua"' . ($status === 'semua' ? ' selected' : '') . '>Semua</option>'
         . '<option value="lunas"' . ($status === 'lunas' ? ' selected' : '') . '>Sudah bayar</option>'
@@ -498,13 +491,13 @@ function render_jimpitan(array $user, PDO $pdo): void
 
     // Tabel
     echo '<div class="table-wrap"><table class="table"><thead><tr>'
-        . '<th>#</th><th>Nama warga</th><th>No. rumah</th><th class="num">Nominal</th><th>Status</th>'
+        . '<th>#</th><th>Nama warga</th><th class="num">Nominal</th><th>Status</th>'
         . '<th>Tanggal input</th><th>Dicatat oleh</th><th>Catatan</th>'
         . ($manage ? '<th>Aksi</th>' : '')
         . '</tr></thead><tbody>';
 
     if (!$rows) {
-        echo '<tr><td colspan="' . ($manage ? 9 : 8) . '"><p class="empty" style="padding:26px 0">Tidak ada data yang cocok.</p></td></tr>';
+        echo '<tr><td colspan="' . ($manage ? 8 : 7) . '"><p class="empty" style="padding:26px 0">Tidak ada data yang cocok.</p></td></tr>';
     }
 
     $no = 1;
@@ -522,8 +515,7 @@ function render_jimpitan(array $user, PDO $pdo): void
         } else {
             $nameHtml = '<strong>' . e($w['name']) . '</strong>';
         }
-        echo '<td>' . $nameHtml . ($w['alamat'] ? '<div class="muted-cell" style="font-size:12px">RT ' . e($w['alamat']) . '</div>' : '') . '</td>';
-        echo '<td class="muted-cell">' . e($w['no_rumah'] ?: '—') . '</td>';
+        echo '<td>' . $nameHtml . '</td>';
         echo '<td class="num">' . ($p ? rupiah((int) $p['nominal']) : '<span class="muted-cell">—</span>') . '</td>';
         echo '<td>' . status_badge($r['status']) . '</td>';
         echo '<td class="muted-cell">' . ($p ? formatTanggal($p['created_at']) : '—') . '</td>';
@@ -885,11 +877,11 @@ function render_warga(array $user, PDO $pdo): void
         . '</form></div>';
 
     echo '<div class="table-wrap"><table class="table"><thead><tr>'
-        . '<th>#</th><th>Nama</th><th>Username</th><th>Peran</th><th>No. rumah</th><th>Alamat / RT</th><th>Aksi</th>'
+        . '<th>#</th><th>Nama</th><th>Username</th><th>Peran</th><th>Aksi</th>'
         . '</tr></thead><tbody>';
 
     if (!$users) {
-        echo '<tr><td colspan="7"><p class="empty" style="padding:26px 0">Belum ada warga atau pengurus terdaftar.</p></td></tr>';
+        echo '<tr><td colspan="5"><p class="empty" style="padding:26px 0">Belum ada warga atau pengurus terdaftar.</p></td></tr>';
     }
 
     $no = 1;
@@ -901,8 +893,6 @@ function render_warga(array $user, PDO $pdo): void
             . '<td><strong>' . e($u['name']) . '</strong></td>'
             . '<td class="muted-cell">@' . e($u['username']) . '</td>'
             . '<td>' . role_badge($u['role']) . '</td>'
-            . '<td class="muted-cell">' . e($u['no_rumah'] ?: '—') . '</td>'
-            . '<td class="muted-cell">' . e($u['alamat'] ?: '—') . '</td>'
             . '<td><div class="actions">'
             . action_btn($editUrl, 'Edit', 'outline', 'pencil')
             . action_btn($passUrl, 'Password', 'outline', 'lockkey')
@@ -918,7 +908,7 @@ function render_warga(array $user, PDO $pdo): void
 function form_user(array $user, PDO $pdo, ?int $userId): void
 {
     $editing = $userId !== null;
-    $name = $username = $alamat = $noRumah = '';
+    $name = $username = '';
     $role = 'warga';
 
     if ($editing) {
@@ -932,8 +922,6 @@ function form_user(array $user, PDO $pdo, ?int $userId): void
         $name = $row['name'];
         $username = $row['username'];
         $role = $row['role'];
-        $alamat = $row['alamat'] ?? '';
-        $noRumah = $row['no_rumah'] ?? '';
     }
 
     page_top($editing ? 'Ubah data' : 'Tambah warga / pengurus', $user, 'warga');
@@ -972,13 +960,6 @@ function form_user(array $user, PDO $pdo, ?int $userId): void
         . '<option value="warga"' . ($role === 'warga' ? ' selected' : '') . '>Warga</option>'
         . '<option value="pengurus"' . ($role === 'pengurus' ? ' selected' : '') . '>Pengurus</option>'
         . '</select></div>';
-
-    echo '<div class="grid grid-2">';
-    echo '<div class="form-row"><label for="u-rumah">No. rumah (warga)</label>'
-        . '<input class="input" id="u-rumah" name="no_rumah" value="' . e($noRumah) . '" placeholder="cth: 12"></div>';
-    echo '<div class="form-row"><label for="u-alamat">Alamat / RT (warga)</label>'
-        . '<input class="input" id="u-alamat" name="alamat" value="' . e($alamat) . '" placeholder="cth: RT 02"></div>';
-    echo '</div>';
 
     echo '<div class="form-actions">'
         . '<button class="btn btn-primary" type="submit">' . svg_icon('check', 16) . 'Simpan</button>'
@@ -1180,12 +1161,12 @@ function render_rekap(array $user, PDO $pdo): void
         . '</div>';
 
     echo '<div class="table-wrap"><table class="table"><thead><tr>'
-        . '<th>#</th><th>Bulan</th><th>Nama</th><th>No. rumah</th><th>Alamat / RT</th>'
+        . '<th>#</th><th>Bulan</th><th>Nama</th>'
         . '<th class="num">Nominal</th><th>Dicatat oleh</th><th>Tanggal input</th><th>Catatan</th>'
         . '</tr></thead><tbody>';
 
     if (!$rows) {
-        echo '<tr><td colspan="9"><p class="empty" style="padding:26px 0">Belum ada catatan pembayaran.</p></td></tr>';
+        echo '<tr><td colspan="7"><p class="empty" style="padding:26px 0">Belum ada catatan pembayaran.</p></td></tr>';
     }
 
     $no = 1;
@@ -1193,8 +1174,6 @@ function render_rekap(array $user, PDO $pdo): void
         echo '<tr><td class="muted-cell">' . $no . '</td>'
             . '<td class="num">' . e($r['month']) . '</td>'
             . '<td><strong>' . e($r['nama']) . '</strong></td>'
-            . '<td class="muted-cell">' . e($r['no_rumah'] ?: '—') . '</td>'
-            . '<td class="muted-cell">' . e($r['alamat'] ?: '—') . '</td>'
             . '<td class="num">' . rupiah((int) $r['nominal']) . '</td>'
             . '<td class="muted-cell">' . e($r['dicatat_oleh']) . '</td>'
             . '<td class="muted-cell">' . formatTanggal($r['created_at']) . '</td>'
@@ -1202,6 +1181,53 @@ function render_rekap(array $user, PDO $pdo): void
         $no++;
     }
     echo '</tbody></table></div>';
+
+    page_bottom();
+}
+
+/* ================================================================== */
+/* Kontak                                                             */
+/* ================================================================== */
+
+function render_kontak(array $user, PDO $pdo): void
+{
+    page_top('Kontak', $user, 'kontak');
+
+    echo section_title('Kontak pengurus', 'Hubungi pengurus RT atau kirim iuran lewat transfer ke rekening kas.');
+
+    echo '<div class="grid grid-3">';
+
+    // Telepon Sari
+    echo '<div class="card card-pad">';
+    echo '<div class="bill-icon" style="background:var(--primary-softer);color:var(--primary-strong);margin-bottom:12px">' . svg_icon('phone', 20) . '</div>';
+    echo '<h3 style="font-size:16px;font-weight:700;margin:0">Sari</h3>';
+    echo '<p class="muted" style="margin:2px 0 14px">Bendahara / pengurus</p>';
+    echo '<a class="btn btn-outline btn-block" href="tel:085XXXXXXXXXXXX" style="justify-content:flex-start">' . svg_icon('phone', 15) . '<span style="font-weight:700">085XXXXXXXXXXXX</span></a>';
+    echo '</div>';
+
+    // Telepon Ina
+    echo '<div class="card card-pad">';
+    echo '<div class="bill-icon" style="background:var(--primary-softer);color:var(--primary-strong);margin-bottom:12px">' . svg_icon('phone', 20) . '</div>';
+    echo '<h3 style="font-size:16px;font-weight:700;margin:0">Ina</h3>';
+    echo '<p class="muted" style="margin:2px 0 14px">Pengurus</p>';
+    echo '<a class="btn btn-outline btn-block" href="tel:085XXXXXXXXXXXX" style="justify-content:flex-start">' . svg_icon('phone', 15) . '<span style="font-weight:700">085XXXXXXXXXXXX</span></a>';
+    echo '</div>';
+
+    // Rekening BRI
+    echo '<div class="card card-pad">';
+    echo '<div class="bill-icon" style="background:var(--success-bg);color:var(--success);margin-bottom:12px">' . svg_icon('wallet', 20) . '</div>';
+    echo '<h3 style="font-size:16px;font-weight:700;margin:0">Rekening BRI</h3>';
+    echo '<p class="muted" style="margin:2px 0 14px">Transfer iuran jimpitan</p>';
+    echo '<div class="info-box" style="font-size:15px;font-weight:800;letter-spacing:0.04em;font-variant-numeric:tabular-nums;text-align:center">5684 5654 4544 4544</div>';
+    echo '</div>';
+
+    echo '</div>';
+
+    echo '<div class="card card-pad" style="margin-top:16px">';
+    echo '<div class="row" style="display:flex;align-items:flex-start;gap:10px">' . svg_icon('alert', 18)
+        . '<p class="muted" style="margin:0;font-size:13.5px">Nomor telepon dan rekening di atas adalah kontak resmi pengurus. '
+        . 'Warga yang belum bisa membayar langsung dapat transfer ke rekening BRI lalu konfirmasi ke pengurus.</p></div>';
+    echo '</div>';
 
     page_bottom();
 }
@@ -1226,10 +1252,6 @@ function render_akun(array $user, PDO $pdo): void
     echo '<div class="row"><span class="muted">Nama</span><span><strong>' . e($user['name']) . '</strong></span></div>';
     echo '<div class="row"><span class="muted">Username</span><span>@' . e($user['username']) . '</span></div>';
     echo '<div class="row"><span class="muted">Peran</span><span>' . role_badge($user['role']) . '</span></div>';
-    if ($user['role'] === 'warga') {
-        echo '<div class="row"><span class="muted">No. rumah</span><span>' . e($user['no_rumah'] ?: '—') . '</span></div>';
-        echo '<div class="row"><span class="muted">Alamat / RT</span><span>' . e($user['alamat'] ?: '—') . '</span></div>';
-    }
     echo '</div></div>';
 
     echo '<div class="card card-pad">';
