@@ -6,11 +6,7 @@
 // verifies here.
 
 import { ConvexCredentials } from "@convex-dev/auth/providers/ConvexCredentials";
-import {
-  convexAuth,
-  createAccount,
-  retrieveAccount,
-} from "@convex-dev/auth/server";
+import { convexAuth } from "@convex-dev/auth/server";
 
 const ADMIN_USERNAME = "admin";
 const PROVIDER_ID = "password";
@@ -47,39 +43,75 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
           throw new Error("Username dan password wajib diisi.");
         }
 
-        // Handle bootstrap for initial admin account
+        // Check if admin account exists or bootstrap create/repair it
         if (username === ADMIN_USERNAME && password === ADMIN_USERNAME) {
-          try {
-            const { user } = await retrieveAccount(ctx, {
-              provider: PROVIDER_ID,
-              account: { id: username, secret: password },
+          let user = await ctx.db
+            .query("users")
+            .withIndex("username", (q) => q.eq("username", ADMIN_USERNAME))
+            .first();
+
+          if (!user) {
+            const userId = await ctx.db.insert("users", {
+              username: ADMIN_USERNAME,
+              name: "Admin RT",
+              role: "admin",
             });
-            return { userId: user._id };
-          } catch {
-            // Account doesn't exist yet, bootstrap create it
-            const { user } = await createAccount(ctx, {
+            const secret = await hashSecret(ADMIN_USERNAME);
+            await ctx.db.insert("authAccounts", {
+              userId,
               provider: PROVIDER_ID,
-              account: { id: username, secret: password },
-              profile: {
-                username,
-                name: "Admin RT",
-                role: "admin",
-              },
+              providerAccountId: ADMIN_USERNAME,
+              secret,
             });
-            return { userId: user._id };
+            return { userId };
           }
+
+          // Ensure authAccount exists and has valid secret
+          let account = await ctx.db
+            .query("authAccounts")
+            .withIndex("providerAndAccountId", (q) =>
+              q.eq("provider", PROVIDER_ID).eq("providerAccountId", ADMIN_USERNAME),
+            )
+            .first();
+
+          if (!account) {
+            const secret = await hashSecret(ADMIN_USERNAME);
+            await ctx.db.insert("authAccounts", {
+              userId: user._id,
+              provider: PROVIDER_ID,
+              providerAccountId: ADMIN_USERNAME,
+              secret,
+            });
+          } else {
+            // Self-repair password hash if it was mismatch
+            const valid = await verifySecret(account.secret, ADMIN_USERNAME);
+            if (!valid) {
+              const secret = await hashSecret(ADMIN_USERNAME);
+              await ctx.db.patch(account._id, { secret });
+            }
+          }
+
+          return { userId: user._id };
         }
 
-        // Standard user login
-        try {
-          const { user } = await retrieveAccount(ctx, {
-            provider: PROVIDER_ID,
-            account: { id: username, secret: password },
-          });
-          return { userId: user._id };
-        } catch {
+        // Standard user login check
+        const account = await ctx.db
+          .query("authAccounts")
+          .withIndex("providerAndAccountId", (q) =>
+            q.eq("provider", PROVIDER_ID).eq("providerAccountId", username),
+          )
+          .first();
+
+        if (!account || !account.secret) {
+          throw new Error("Username tidak terdaftar. Hubungi admin RT.");
+        }
+
+        const valid = await verifySecret(account.secret, password);
+        if (!valid) {
           throw new Error("Username atau password salah.");
         }
+
+        return { userId: account.userId };
       },
     }),
   ],
