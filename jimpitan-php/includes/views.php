@@ -281,6 +281,51 @@ function render_beranda(array $user, PDO $pdo): void
     echo '<div class="section-head" style="margin-bottom:16px"><h1 class="h2">Halo, ' . e(explode(' ', trim($user['name']))[0]) . ' 👋</h1>'
         . '<p class="muted">Ringkasan kas iuran warga.</p></div>';
 
+    // Notifikasi tagihan untuk warga: total kekurangan iuran yang belum dibayar
+    // (terhitung Agustus 2026, diakumulasikan Rp15.000/bulan).
+    if ($user['role'] === 'warga') {
+        $bill = tagihanWarga($pdo, (int) $user['id']);
+        $hasTunggakan = $bill['kekurangan'] > 0;
+
+        echo '<div class="card card-pad bill-card' . ($hasTunggakan ? ' bill-card-warn' : ' bill-card-ok') . '" style="margin-bottom:16px">';
+        echo '<div class="bill-head">';
+        echo '<div class="bill-icon' . ($hasTunggakan ? ' bill-icon-warn' : ' bill-icon-ok') . '">' . svg_icon($hasTunggakan ? 'alert' : 'check', 20) . '</div>';
+        echo '<div class="bill-info">'
+            . '<h3 style="font-size:16px;font-weight:700;margin:0">Tagihan Jimpitan Anda</h3>'
+            . '<p class="muted" style="margin:2px 0 0">' . $bill['monthsCount'] . ' bulan (' . monthLabel($bill['start']) . ' – ' . monthLabel($bill['end']) . ') × ' . rupiah(JIMPITAN_PER_BULAN) . '/bulan</p>'
+            . '</div>';
+        echo '</div>';
+
+        if ($hasTunggakan) {
+            echo '<p class="bill-total bill-total-warn">' . rupiah($bill['kekurangan']) . '</p>';
+            echo '<p class="muted" style="margin:0 0 10px">Total kekurangan iuran yang belum dibayar.</p>';
+            if ($bill['belumMonths']) {
+                echo '<div class="bill-chips">';
+                foreach ($bill['belumMonths'] as $bm) {
+                    echo '<span class="badge badge-warn">' . monthShortLabel($bm) . '</span>';
+                }
+                echo '</div>';
+            }
+        } else {
+            echo '<p class="bill-total bill-total-ok">Lunas semua 🎉</p>';
+            echo '<p class="muted" style="margin:0 0 10px">Tagihan s.d. ' . monthLabel($bill['end']) . ' sudah terbayar'
+                . ($bill['kelebihan'] > 0 ? ' — ada kelebihan ' . rupiah($bill['kelebihan']) . '.' : '.') . '</p>';
+        }
+
+        echo '<div class="info-box" style="margin:12px 0 14px">';
+        echo '<div class="row"><span class="muted">Total kewajiban</span><span>' . rupiah($bill['totalTagihan']) . '</span></div>';
+        echo '<div class="row"><span class="muted">Total dibayar</span><span>' . rupiah($bill['totalBayar']) . '</span></div>';
+        echo '</div>';
+
+        $pctBill = $bill['totalTagihan'] > 0 ? (int) round($bill['totalBayar'] / $bill['totalTagihan'] * 100) : 100;
+        echo progress_bar($pctBill, $hasTunggakan ? 'warn' : 'success');
+
+        echo '<div class="form-actions" style="margin-top:14px">'
+            . '<a class="btn btn-primary btn-sm" href="dashboard.php?view=jimpitan">' . svg_icon('calendar', 15) . 'Lihat rincian pembayaran</a>'
+            . '</div>';
+        echo '</div>';
+    }
+
     echo '<div class="grid grid-4" style="margin-bottom:16px">';
     echo stat_card('Total terkumpul', rupiah($stats['grandTotal']), $stats['monthsCount'] . ' bulan tercatat', 'primary');
     echo stat_card('Pengeluaran', rupiah($stats['totalPengeluaran']), 'kas keluar', 'danger');

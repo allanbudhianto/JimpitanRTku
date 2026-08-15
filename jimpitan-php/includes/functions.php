@@ -279,6 +279,85 @@ function publicStats(PDO $pdo): array
     ];
 }
 
+/**
+ * Tagihan iuran seorang warga: kewajiban Rp15.000/bulan terhitung dari
+ * Agustus 2026, diakumulasikan setiap bulan sampai bulan berjalan,
+ * dikurangi total pembayaran yang tercatat.
+ *
+ * Kelebihan pembayaran dibawa maju (konsisten dengan logika overview),
+ * jadi "kekurangan" adalah saldo negatif yang belum tertutup.
+ *
+ * @return array{start:string,end:string,monthsCount:int,totalTagihan:int,totalBayar:int,kekurangan:int,kelebihan:int,belumMonths:array,lunas:bool}
+ */
+function tagihanWarga(PDO $pdo, int $wargaId): array
+{
+    $start = '2026-08'; // periode tagihan dimulai Agustus 2026
+    $end = currentMonthKey();
+    if (strcmp($end, $start) < 0) {
+        $end = $start;
+    }
+
+    // Daftar bulan kewajiban: start .. end
+    $months = [];
+    $m = $start;
+    while (strcmp($m, $end) <= 0) {
+        $months[] = $m;
+        $m = shiftMonthKey($m, 1);
+    }
+
+    $stmt = $pdo->prepare("SELECT month, nominal FROM jimpitan WHERE warga_id = ? ORDER BY month ASC");
+    $stmt->execute([$wargaId]);
+    $payments = $stmt->fetchAll();
+
+    $totalBayar = 0;
+    $byMonth = [];
+    foreach ($payments as $p) {
+        $totalBayar += (int) $p['nominal'];
+        $byMonth[$p['month']][] = (int) $p['nominal'];
+    }
+
+    // Saldo berjalan: kewajiban tiap bulan dikurangi bayaran pada bulan itu.
+    $balance = 0;
+    $pendingStart = null; // bulan pertama yang belum tertutup (tunggakan)
+    foreach ($months as $month) {
+        $balance -= JIMPITAN_PER_BULAN;
+        foreach ($byMonth[$month] ?? [] as $nominal) {
+            $balance += $nominal;
+        }
+        if ($balance < 0 && $pendingStart === null) {
+            $pendingStart = $month;
+        }
+        if ($balance >= 0) {
+            $pendingStart = null;
+        }
+    }
+
+    $belumMonths = [];
+    if ($pendingStart !== null) {
+        $started = false;
+        foreach ($months as $month) {
+            if ($month === $pendingStart) {
+                $started = true;
+            }
+            if ($started) {
+                $belumMonths[] = $month;
+            }
+        }
+    }
+
+    return [
+        'start'        => $start,
+        'end'          => $end,
+        'monthsCount'  => count($months),
+        'totalTagihan' => count($months) * JIMPITAN_PER_BULAN,
+        'totalBayar'   => $totalBayar,
+        'kekurangan'   => max(0, -$balance),
+        'kelebihan'    => max(0, $balance),
+        'belumMonths'  => $belumMonths,
+        'lunas'        => $balance >= 0,
+    ];
+}
+
 /** Daftar pengeluaran (terbaru dulu) + total. */
 function listPengeluaran(PDO $pdo): array
 {
