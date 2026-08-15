@@ -12,6 +12,7 @@ require_once __DIR__ . '/layout.php';
 
 function handle_post(array $user, PDO $pdo): void
 {
+    verify_csrf();
     $action = (string) ($_POST['action'] ?? '');
     $backView = in_array($_POST['back_view'] ?? '', ['beranda', 'jimpitan', 'pengeluaran', 'warga', 'qris', 'rekap', 'akun'], true)
         ? (string) $_POST['back_view']
@@ -467,7 +468,7 @@ function render_jimpitan(array $user, PDO $pdo): void
             echo '<td><div class="actions">';
             if ($p) {
                 $editUrl = 'dashboard.php?view=jimpitan&form=pay&warga_id=' . (int) $w['id'] . '&month=' . $month;
-                $delUrl = 'dashboard.php?view=jimpitan&form=delete_payment&payment_id=' . (int) $p['id'];
+                $delUrl = 'dashboard.php?view=jimpitan&form=delete_payment&payment_id=' . (int) $p['id'] . '&month=' . $month;
                 echo action_btn($editUrl, 'Edit', 'outline', 'pencil');
                 echo action_btn($delUrl, 'Hapus', 'danger', 'trash');
             } else {
@@ -605,6 +606,7 @@ function form_jimpitan_delete(array $user, PDO $pdo): void
     echo csrf_field();
     echo '<input type="hidden" name="action" value="delete_payment">';
     echo '<input type="hidden" name="back_view" value="jimpitan">';
+    echo '<input type="hidden" name="back_month" value="' . e($payment['month']) . '">';
     echo '<input type="hidden" name="payment_id" value="' . (int) $payment['id'] . '">';
     echo '<div class="form-actions" style="justify-content:center">'
         . '<button class="btn btn-danger" type="submit">' . svg_icon('trash', 16) . 'Ya, hapus</button>'
