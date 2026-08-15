@@ -47,40 +47,37 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
           throw new Error("Username dan password wajib diisi.");
         }
 
+        // Handle bootstrap for initial admin account
+        if (username === ADMIN_USERNAME && password === ADMIN_USERNAME) {
+          try {
+            const { user } = await retrieveAccount(ctx, {
+              provider: PROVIDER_ID,
+              account: { id: username, secret: password },
+            });
+            return { userId: user._id };
+          } catch {
+            // Account doesn't exist yet, bootstrap create it
+            const { user } = await createAccount(ctx, {
+              provider: PROVIDER_ID,
+              account: { id: username, secret: password },
+              profile: {
+                username,
+                name: "Admin RT",
+                role: "admin",
+              },
+            });
+            return { userId: user._id };
+          }
+        }
+
+        // Standard user login
         try {
-          // Looks up the account by (provider, username) and verifies the
-          // password. Throws with a framework error code on failure.
           const { user } = await retrieveAccount(ctx, {
             provider: PROVIDER_ID,
             account: { id: username, secret: password },
           });
           return { userId: user._id };
-        } catch (err) {
-          const code = err instanceof Error ? err.message : "";
-
-          // Bootstrap: create the reserved admin account (admin / admin) once.
-          if (code === "InvalidAccountId") {
-            if (username === ADMIN_USERNAME && password === ADMIN_USERNAME) {
-              const { user } = await createAccount(ctx, {
-                provider: PROVIDER_ID,
-                account: { id: username, secret: password },
-                profile: {
-                  username,
-                  name: "Admin RT",
-                  role: "admin",
-                },
-              });
-              return { userId: user._id };
-            }
-            throw new Error("Username tidak terdaftar. Hubungi admin RT.");
-          }
-
-          if (code === "TooManyFailedAttempts") {
-            throw new Error(
-              "Terlalu banyak percobaan gagal. Coba lagi beberapa saat lagi.",
-            );
-          }
-
+        } catch {
           throw new Error("Username atau password salah.");
         }
       },
