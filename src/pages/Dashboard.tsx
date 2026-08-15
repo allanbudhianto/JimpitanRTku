@@ -74,6 +74,7 @@ import {
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
+  CircleAlert,
   CircleDashed,
   Database,
   HandCoins,
@@ -1736,6 +1737,10 @@ export default function Dashboard() {
     api.jimpitan.getMonthsWithData,
     role ? undefined : "skip",
   );
+  const wargaTagihan = useQuery(
+    api.jimpitan.getWargaTagihan,
+    role === ROLES.WARGA ? undefined : "skip",
+  );
   const allUsers = useQuery(api.users.listUsers, isAdmin ? undefined : "skip");
 
   const handleSignOut = async () => {
@@ -1856,6 +1861,24 @@ export default function Dashboard() {
           </div>
           <RoleBadge role={role!} />
         </div>
+
+        {/* Notifikasi tagihan: tampil merah bila warga belum membayar */}
+        {wargaTagihan && wargaTagihan.kekurangan > 0 && (
+          <div className="mt-4 flex items-start gap-3 rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-3">
+            <CircleAlert className="mt-0.5 size-5 shrink-0 text-destructive" />
+            <div>
+              <p className="text-sm font-bold text-destructive">
+                Anda belum membayar {formatRupiah(wargaTagihan.kekurangan)}
+              </p>
+              <p className="mt-0.5 text-xs text-destructive/80">
+                Iuran {formatRupiah(JIMPITAN_PER_BULAN)}/bulan · terhitung{" "}
+                {monthLabel(wargaTagihan.start)} – {monthLabel(wargaTagihan.end)}{" "}
+                ({wargaTagihan.monthsCount} bulan) — tunggakan bertambah setiap
+                bulan.
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Month navigator */}
         <div className="mt-6 flex flex-wrap items-center justify-between gap-3">

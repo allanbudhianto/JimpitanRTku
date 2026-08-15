@@ -11,6 +11,19 @@ function monthIndex(month: string) {
   return y * 12 + (m - 1);
 }
 
+/** "YYYY-MM" satu bulan setelahnya. */
+function nextMonthKey(month: string) {
+  const [y, m] = month.split("-").map(Number);
+  const d = new Date(y, m, 1); // hari 1 bulan berikutnya (m = 1..12)
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
+/** Bulan berjalan dalam zona Asia/Jakarta (UTC+7). */
+function currentMonthKey() {
+  const now = new Date(Date.now() + 7 * 60 * 60 * 1000);
+  return `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+
 /**
  * Overview for one month: warga list joined with their payment record, plus
  * totals. Visible to every signed-in user with a role (admin, pengurus, warga).
@@ -317,6 +330,66 @@ export const getPublicStats = query({
       latestUnpaid: Math.max(0, wargaList.length - latestPaid),
       targetPerMonth: wargaList.length * JIMPITAN_PER_BULAN,
       series,
+    };
+  },
+});
+
+/**
+ * Tagihan iuran untuk warga yang sedang login: kewajiban Rp15.000/bulan
+ * terhitung dari Agustus 2026 ("bulan ini" saat aturan ini diberlakukan),
+ * diakumulasikan setiap bulan sampai bulan berjalan, dikurangi total bayar.
+ * Kelebihan pembayaran dibawa maju (konsisten dengan getOverview).
+ */
+export const getWargaTagihan = query({
+  args: {},
+  handler: async (ctx) => {
+    const user = await getCurrentUser(ctx);
+    if (!user || user.role !== ROLES.WARGA) return null;
+
+    const start = "2026-08";
+    const end = currentMonthKey();
+    if (end < start) return null;
+
+    const payments = await ctx.db
+      .query("jimpitan")
+      .withIndex("by_warga", (q) => q.eq("wargaId", user._id))
+      .collect();
+
+    const totalBayar = payments.reduce((sum, p) => sum + p.nominal, 0);
+    const byMonth = new Map<string, number[]>();
+    for (const p of payments) {
+      byMonth.set(p.month, [...(byMonth.get(p.month) ?? []), p.nominal]);
+    }
+
+    const months: string[] = [];
+    for (let m = start; m <= end; m = nextMonthKey(m)) {
+      months.push(m);
+    }
+
+    // Saldo berjalan: kewajiban tiap bulan dikurangi bayaran bulan itu;
+    // kelebihan otomatis menutupi bulan-bulan berikutnya.
+    let balance = 0;
+    let pendingStart: string | null = null;
+    for (const month of months) {
+      balance -= JIMPITAN_PER_BULAN;
+      for (const nominal of byMonth.get(month) ?? []) {
+        balance += nominal;
+      }
+      if (balance < 0 && pendingStart === null) pendingStart = month;
+      if (balance >= 0) pendingStart = null;
+    }
+
+    return {
+      start,
+      end,
+      monthsCount: months.length,
+      totalTagihan: months.length * JIMPITAN_PER_BULAN,
+      totalBayar,
+      kekurangan: Math.max(0, -balance),
+      kelebihan: Math.max(0, balance),
+      belumMonths:
+        pendingStart === null ? [] : months.filter((m) => m >= pendingStart),
+      lunas: balance >= 0,
     };
   },
 });

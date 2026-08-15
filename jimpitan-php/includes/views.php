@@ -281,6 +281,18 @@ function render_beranda(array $user, PDO $pdo): void
     echo '<div class="section-head" style="margin-bottom:16px"><h1 class="h2">Halo, ' . e(explode(' ', trim($user['name']))[0]) . ' 👋</h1>'
         . '<p class="muted">Ringkasan kas iuran warga.</p></div>';
 
+    // Notifikasi merah di bawah sapaan bila warga belum membayar.
+    if ($user['role'] === 'warga') {
+        $billAlert = tagihanWarga($pdo, (int) $user['id']);
+        if ($billAlert['kekurangan'] > 0) {
+            echo '<div style="margin-bottom:16px;padding:12px 16px;border:1px solid #f3c7c2;border-radius:10px;background:var(--danger-bg);color:var(--danger)">'
+                . '<div style="display:flex;align-items:center;gap:8px;font-weight:700">' . svg_icon('alert', 18) . 'Anda belum membayar ' . rupiah($billAlert['kekurangan']) . '</div>'
+                . '<p style="margin:3px 0 0 26px;font-size:13px;font-weight:400">Iuran ' . rupiah(JIMPITAN_PER_BULAN) . '/bulan · terhitung '
+                . monthLabel($billAlert['start']) . ' – ' . monthLabel($billAlert['end'])
+                . ' — tunggakan bertambah setiap bulan.</p></div>';
+        }
+    }
+
     // Notifikasi tagihan untuk warga: total kekurangan iuran yang belum dibayar
     // (terhitung Agustus 2026, diakumulasikan Rp15.000/bulan).
     if ($user['role'] === 'warga') {
