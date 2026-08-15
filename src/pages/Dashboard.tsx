@@ -141,6 +141,20 @@ function formatRupiah(n: number) {
   }).format(n);
 }
 
+/** Format angka mentah (hanya digit) jadi rupiah bertitik, mis. "15000" → "15.000". */
+function formatCurrencyInput(digits: string) {
+  const clean = digits.replace(/\D/g, "").replace(/^0+(?=\d)/, "");
+  return clean ? Number(clean).toLocaleString("id-ID") : "";
+}
+
+/** Normalisasi catatan lama ("tunai", "qr", dll.) ke nilai dropdown. */
+function normalizeNote(raw?: string) {
+  const t = (raw ?? "").trim().toLowerCase();
+  if (t === "tunai" || t === "cash") return "Tunai";
+  if (t === "qris" || t === "qr") return "QRIS";
+  return "";
+}
+
 function formatCompact(n: number) {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}jt`;
   if (n >= 1_000) return `${Math.round(n / 1_000)}rb`;
@@ -1372,7 +1386,7 @@ function PayDialog({
   const [nominal, setNominal] = useState(
     payment ? String(payment.nominal) : String(JIMPITAN_PER_BULAN),
   );
-  const [note, setNote] = useState(payment?.note ?? "");
+  const [note, setNote] = useState(normalizeNote(payment?.note));
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -1380,7 +1394,7 @@ function PayDialog({
     setNominal(
       payment ? String(payment.nominal) : String(JIMPITAN_PER_BULAN),
     );
-    setNote(payment?.note ?? "");
+    setNote(normalizeNote(payment?.note));
     setError(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [warga._id, month]);
@@ -1404,7 +1418,7 @@ function PayDialog({
         wargaId: warga._id,
         month,
         nominal: value,
-        note: note.trim() || undefined,
+        note: note || undefined,
       });
       toast.success(
         payment
@@ -1451,8 +1465,8 @@ function PayDialog({
             <Input
               id="pay-nominal"
               inputMode="numeric"
-              placeholder="cth: 15000"
-              value={nominal}
+              placeholder="cth: 15.000"
+              value={formatCurrencyInput(nominal)}
               onChange={(e) => setNominal(e.target.value)}
               autoFocus
               disabled={submitting}
@@ -1489,13 +1503,19 @@ function PayDialog({
           </div>
           <div className="grid gap-2">
             <Label htmlFor="pay-note">Catatan (opsional)</Label>
-            <Input
-              id="pay-note"
-              placeholder="cth: dibayar tunai"
+            <Select
               value={note}
-              onChange={(e) => setNote(e.target.value)}
+              onValueChange={setNote}
               disabled={submitting}
-            />
+            >
+              <SelectTrigger id="pay-note" className="w-full">
+                <SelectValue placeholder="Pilih metode pembayaran" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Tunai">Tunai</SelectItem>
+                <SelectItem value="QRIS">QRIS</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
           {error && <p className="text-sm text-destructive">{error}</p>}
           <DialogFooter className="gap-2 sm:justify-between">
