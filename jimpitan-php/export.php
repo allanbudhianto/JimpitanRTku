@@ -32,7 +32,7 @@ foreach ($rows as $r) {
         (int) $r['nominal'],
         $r['dicatat_oleh'],
         date('Y-m-d H:i', strtotime($r['created_at'])),
-        $r['note'] ?? '',
+        normalizeNote($r['note'] ?? ''),
     ]);
     $no++;
 }

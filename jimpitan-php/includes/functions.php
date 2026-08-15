@@ -30,6 +30,25 @@ function rupiah(int $n): string
     return 'Rp ' . number_format($n, 0, ',', '.');
 }
 
+/**
+ * Normalisasi catatan pembayaran lama ("tunai", "cash", "qr", dll.)
+ * ke nilai dropdown: "Tunai" atau "QRIS". Teks lain dikembalikan apa adanya.
+ */
+function normalizeNote(?string $note): string
+{
+    $t = mb_strtolower(trim((string) $note));
+    if ($t === '') {
+        return '';
+    }
+    if (in_array($t, ['tunai', 'cash'], true)) {
+        return 'Tunai';
+    }
+    if (in_array($t, ['qris', 'qr'], true)) {
+        return 'QRIS';
+    }
+    return trim((string) $note);
+}
+
 function redirect(string $url): void
 {
     header('Location: ' . $url);
@@ -388,7 +407,7 @@ function publicExpenses(PDO $pdo): array
 /** Rekap semua pembayaran (bulan terbaru dulu, lalu nama). */
 function listRekap(PDO $pdo): array
 {
-    return $pdo->query(
+    $rows = $pdo->query(
         "SELECT j.id, j.month, j.nominal, j.note, j.created_at,
                 w.name AS nama, w.no_rumah, w.alamat,
                 r.name AS dicatat_oleh
@@ -397,6 +416,14 @@ function listRekap(PDO $pdo): array
          JOIN users r ON r.id = j.recorded_by_id
          ORDER BY j.month DESC, w.name ASC"
     )->fetchAll();
+
+    // Normalisasi catatan lama ("tunai" → "Tunai") agar tampil konsisten.
+    foreach ($rows as &$r) {
+        $r['note'] = normalizeNote($r['note'] ?? '') ?: null;
+    }
+    unset($r);
+
+    return $rows;
 }
 
 /** Daftar bulan yang punya data pembayaran (terbaru dulu). */

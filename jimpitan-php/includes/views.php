@@ -33,7 +33,7 @@ function handle_post(array $user, PDO $pdo): void
             $wargaId = (int) ($_POST['warga_id'] ?? 0);
             $month = validMonth((string) ($_POST['month'] ?? ''));
             $nominal = (int) preg_replace('/\D/', '', (string) ($_POST['nominal'] ?? ''));
-            $note = mb_substr(trim((string) ($_POST['note'] ?? '')), 0, 255);
+            $note = mb_substr(normalizeNote((string) ($_POST['note'] ?? '')), 0, 255);
 
             if (!$month) {
                 flash_set('error', 'Bulan tidak valid.');
@@ -528,7 +528,7 @@ function render_jimpitan(array $user, PDO $pdo): void
         echo '<td>' . status_badge($r['status']) . '</td>';
         echo '<td class="muted-cell">' . ($p ? formatTanggal($p['created_at']) : '—') . '</td>';
         echo '<td class="muted-cell">' . ($p ? e($r['recordedByName']) : '—') . '</td>';
-        echo '<td class="muted-cell">' . ($p && $p['note'] ? e($p['note']) : '—') . '</td>';
+        echo '<td>' . ($p && $p['note'] ? note_html((string) $p['note']) : '<span class="muted-cell">—</span>') . '</td>';
 
         if ($manage) {
             echo '<td><div class="actions">';
@@ -597,7 +597,7 @@ function form_jimpitan_pay(array $user, PDO $pdo): void
 
     echo '<div class="form-grid">';
     echo '<div class="form-row"><label for="pay-nominal">Nominal (Rp)</label>'
-        . '<input class="input" id="pay-nominal" name="nominal" inputmode="numeric" value="' . $nominal . '" required autofocus>'
+        . '<input class="input" id="pay-nominal" name="nominal" inputmode="numeric" value="' . number_format($nominal, 0, ',', '.') . '" required autofocus>'
         . '<p class="hint">Iuran wajib ' . rupiah(JIMPITAN_PER_BULAN) . '/bulan. Kelebihan otomatis diakumulasikan ke bulan berikutnya.</p></div>';
 
     echo '<div class="info-box">';
@@ -606,8 +606,14 @@ function form_jimpitan_pay(array $user, PDO $pdo): void
     echo '<div class="row" id="surplus-row" style="display:none"><span class="muted">Setelah pembayaran ini</span><span id="surplus-text"></span></div>';
     echo '</div>';
 
-    echo '<div class="form-row"><label for="pay-note">Catatan (opsional)</label>'
-        . '<input class="input" id="pay-note" name="note" value="' . e($payment['note'] ?? '') . '" placeholder="cth: dibayar tunai / QRIS"></div>';
+    $noteSel = normalizeNote($payment['note'] ?? '');
+    echo '<div class="form-row"><label for="pay-note">Metode pembayaran (opsional)</label>'
+        . '<select class="input" id="pay-note" name="note">'
+        . '<option value=""' . ($noteSel === '' ? ' selected' : '') . '>— Pilih metode —</option>'
+        . '<option value="Tunai"' . ($noteSel === 'Tunai' ? ' selected' : '') . '>Tunai</option>'
+        . '<option value="QRIS"' . ($noteSel === 'QRIS' ? ' selected' : '') . '>QRIS</option>'
+        . '</select>'
+        . '<p class="hint">Catat cara warga membayar iuran bulan ini.</p></div>';
 
     echo '<div class="form-actions">'
         . '<button class="btn btn-primary" type="submit">' . svg_icon('check', 16) . 'Simpan</button>'
@@ -621,6 +627,13 @@ var iuran = ' . JIMPITAN_PER_BULAN . ';
 var input = document.getElementById("pay-nominal");
 var row = document.getElementById("surplus-row");
 var text = document.getElementById("surplus-text");
+function formatRp(digits) {
+  var n = String(digits).replace(/\D/g, "");
+  return n ? Number(n).toLocaleString("id-ID") : "";
+}
+function formatInput() {
+  input.value = formatRp(input.value);
+}
 function hitung() {
   var n = parseInt(String(input.value).replace(/\D/g, ""), 10) || 0;
   var sisa = saldo + n - iuran;
@@ -635,7 +648,8 @@ function hitung() {
     row.style.display = "none";
   }
 }
-input.addEventListener("input", hitung);
+input.addEventListener("input", function () { formatInput(); hitung(); });
+formatInput();
 hitung();
 </script>';
 
@@ -782,7 +796,7 @@ function form_expense(array $user, PDO $pdo, ?int $expenseId): void
 
     echo '<div class="form-grid">';
     echo '<div class="form-row"><label for="ex-nominal">Nominal (Rp)</label>'
-        . '<input class="input" id="ex-nominal" name="nominal" inputmode="numeric" value="' . e($nominal) . '" placeholder="cth: 50000" required autofocus></div>';
+        . '<input class="input" id="ex-nominal" name="nominal" inputmode="numeric" value="' . e($nominal !== '' ? number_format((int) $nominal, 0, ',', '.') : '') . '" placeholder="cth: 50.000" required autofocus></div>';
     echo '<div class="form-row"><label for="ex-alasan">Alasan pengeluaran</label>'
         . '<input class="input" id="ex-alasan" name="alasan" value="' . e($alasan) . '" placeholder="cth: belanja konsumsi rapat warga" required></div>';
     echo '<div class="form-actions">'
@@ -790,6 +804,18 @@ function form_expense(array $user, PDO $pdo, ?int $expenseId): void
         . '<a class="btn btn-ghost" href="dashboard.php?view=pengeluaran">Batal</a>'
         . '</div>';
     echo '</div></form></div>';
+
+    echo '<script>
+var exInput = document.getElementById("ex-nominal");
+function exFormat(v) {
+  var n = String(v).replace(/\D/g, "");
+  return n ? Number(n).toLocaleString("id-ID") : "";
+}
+exInput.addEventListener("input", function () {
+  exInput.value = exFormat(exInput.value);
+});
+if (exInput.value) exInput.value = exFormat(exInput.value);
+</script>';
 
     page_bottom();
 }

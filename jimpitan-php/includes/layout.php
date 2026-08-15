@@ -133,6 +133,22 @@ function status_badge(string $status): string
     return badge('Belum', 'warn');
 }
 
+/** Badge metode pembayaran (Tunai / QRIS) atau teks catatan lama. */
+function note_html(?string $note): string
+{
+    $n = normalizeNote($note);
+    if ($n === '') {
+        return '—';
+    }
+    if ($n === 'Tunai') {
+        return badge('Tunai', 'muted');
+    }
+    if ($n === 'QRIS') {
+        return badge('QRIS', 'primary');
+    }
+    return e($n);
+}
+
 function role_badge(string $role): string
 {
     $map = [
