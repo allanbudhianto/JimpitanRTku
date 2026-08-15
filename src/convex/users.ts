@@ -72,8 +72,6 @@ export const listUsers = query({
         name: u.name ?? "",
         username: u.username ?? "",
         role: u.role as Role,
-        alamat: u.alamat ?? "",
-        noRumah: u.noRumah ?? "",
         _creationTime: u._creationTime,
       }))
       .sort((a, b) => a.name.localeCompare(b.name, "id"));
@@ -159,10 +157,8 @@ export const updateUser = mutation({
     role: v.optional(
       v.union(v.literal(ROLES.WARGA), v.literal(ROLES.PENGGURUS)),
     ),
-    alamat: v.optional(v.string()),
-    noRumah: v.optional(v.string()),
   },
-  handler: async (ctx, { userId, name, username, role, alamat, noRumah }) => {
+  handler: async (ctx, { userId, name, username, role }) => {
     const admin = await getCurrentUser(ctx);
     if (!admin || admin.role !== ROLES.ADMIN) {
       throw new Error("Hanya admin yang dapat mengubah warga/pengurus.");
@@ -177,8 +173,6 @@ export const updateUser = mutation({
       name?: string;
       username?: string;
       role?: Role;
-      alamat?: string;
-      noRumah?: string;
     } = {};
 
     if (name !== undefined) {
@@ -216,8 +210,6 @@ export const updateUser = mutation({
     if (role !== undefined) {
       patch.role = role;
     }
-    if (alamat !== undefined) patch.alamat = alamat.trim() || undefined;
-    if (noRumah !== undefined) patch.noRumah = noRumah.trim() || undefined;
 
     await ctx.db.patch(userId, patch);
     return true;
@@ -279,10 +271,8 @@ export const addUser = mutation({
     username: v.string(),
     password: v.string(),
     role: v.union(v.literal(ROLES.WARGA), v.literal(ROLES.PENGGURUS)),
-    alamat: v.optional(v.string()),
-    noRumah: v.optional(v.string()),
   },
-  handler: async (ctx, { name, username, password, role, alamat, noRumah }) => {
+  handler: async (ctx, { name, username, password, role }) => {
     const admin = await getCurrentUser(ctx);
     if (!admin || admin.role !== ROLES.ADMIN) {
       throw new Error("Hanya admin yang dapat menambahkan warga/pengurus.");
@@ -307,8 +297,6 @@ export const addUser = mutation({
       username: cleanUsername,
       name: cleanName,
       role,
-      alamat: role === ROLES.WARGA ? alamat?.trim() || undefined : undefined,
-      noRumah: role === ROLES.WARGA ? noRumah?.trim() || undefined : undefined,
     });
 
     const secret = await new Scrypt().hash(password);

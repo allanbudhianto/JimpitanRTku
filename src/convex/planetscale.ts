@@ -128,8 +128,6 @@ export const exportRekap = action({
           id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
           warga_id VARCHAR(64) NOT NULL,
           nama VARCHAR(255) NOT NULL,
-          no_rumah VARCHAR(32) NULL,
-          alamat VARCHAR(255) NULL,
           bulan CHAR(7) NOT NULL,
           nominal INT NOT NULL,
           dicatat_oleh VARCHAR(255) NULL,
@@ -144,14 +142,12 @@ export const exportRekap = action({
       let exported = 0;
       for (let i = 0; i < rows.length; i += CHUNK) {
         const chunk = rows.slice(i, i + CHUNK);
-        const placeholders = chunk.map(() => "(?, ?, ?, ?, ?, ?, ?, ?, ?)").join(", ");
+        const placeholders = chunk.map(() => "(?, ?, ?, ?, ?, ?, ?, ?)").join(", ");
         const values: (string | number | Date | null)[] = [];
         for (const r of chunk) {
           values.push(
             r.wargaId,
             r.nama,
-            r.noRumah || null,
-            r.alamat || null,
             r.month,
             r.nominal,
             r.recordedByName || null,
@@ -161,12 +157,10 @@ export const exportRekap = action({
         }
         await connection.query(
           `INSERT INTO ${REKAP_TABLE}
-            (warga_id, nama, no_rumah, alamat, bulan, nominal, dicatat_oleh, dicatat_pada, catatan)
+            (warga_id, nama, bulan, nominal, dicatat_oleh, dicatat_pada, catatan)
            VALUES ${placeholders}
            ON DUPLICATE KEY UPDATE
              nama = VALUES(nama),
-             no_rumah = VALUES(no_rumah),
-             alamat = VALUES(alamat),
              nominal = VALUES(nominal),
              dicatat_oleh = VALUES(dicatat_oleh),
              dicatat_pada = VALUES(dicatat_pada),

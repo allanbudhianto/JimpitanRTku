@@ -43,8 +43,6 @@ const schema = defineSchema(
       role: v.optional(roleValidator), // role of the user. do not remove
 
       username: v.optional(v.string()), // login username (username + password auth)
-      alamat: v.optional(v.string()), // address of the warga
-      noRumah: v.optional(v.string()), // house number of the warga
     })
       .index("email", ["email"]) // index for the email. do not remove or modify
       .index("username", ["username"]), // index for username login

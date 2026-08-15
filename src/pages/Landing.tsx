@@ -47,7 +47,7 @@ const steps = [
     icon: UserPlus,
     title: "Admin mendaftarkan warga",
     description:
-      "Tambahkan warga dan pengurus beserta alamat rumahnya — cukup sekali.",
+      "Tambahkan warga dan pengurus — cukup sekali.",
   },
   {
     icon: PencilLine,

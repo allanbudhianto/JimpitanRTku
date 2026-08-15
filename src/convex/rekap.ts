@@ -26,8 +26,6 @@ export const getRekapData = query({
       return {
         wargaId: p.wargaId,
         nama: warga?.name ?? "Tanpa nama",
-        noRumah: warga?.noRumah ?? "",
-        alamat: warga?.alamat ?? "",
         month: p.month,
         nominal: p.nominal,
         recordedByName: recorder?.name ?? "Pengurus",

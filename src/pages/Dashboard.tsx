@@ -221,7 +221,7 @@ function chartTooltipFormatter(value: unknown, name: unknown) {
 /* Types                                                               */
 /* ------------------------------------------------------------------ */
 
-type Warga = { _id: Id<"users">; name: string; alamat: string; noRumah: string };
+type Warga = { _id: Id<"users">; name: string };
 
 type PaymentInfo = {
   _id: Id<"jimpitan">;
@@ -249,8 +249,6 @@ type ManagedUser = {
   name: string;
   username: string;
   role: Role;
-  alamat: string;
-  noRumah: string;
   _creationTime: number;
 };
 
@@ -344,8 +342,6 @@ function AddUserDialog({
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState<"warga" | "pengurus">(ROLES.WARGA);
-  const [alamat, setAlamat] = useState("");
-  const [noRumah, setNoRumah] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -355,8 +351,6 @@ function AddUserDialog({
       setUsername("");
       setPassword("");
       setRole(ROLES.WARGA);
-      setAlamat("");
-      setNoRumah("");
       setError(null);
     }
   }, [open]);
@@ -371,8 +365,6 @@ function AddUserDialog({
         username,
         password,
         role,
-        alamat: alamat.trim() || undefined,
-        noRumah: noRumah.trim() || undefined,
       });
       toast.success(
         role === ROLES.WARGA
@@ -456,30 +448,6 @@ function AddUserDialog({
               </SelectContent>
             </Select>
           </div>
-          {role === ROLES.WARGA && (
-            <div className="grid grid-cols-2 gap-3">
-              <div className="grid gap-2">
-                <Label htmlFor="au-rumah">No. rumah</Label>
-                <Input
-                  id="au-rumah"
-                  value={noRumah}
-                  onChange={(e) => setNoRumah(e.target.value)}
-                  placeholder="cth: 12"
-                  disabled={submitting}
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="au-alamat">Alamat / RT</Label>
-                <Input
-                  id="au-alamat"
-                  value={alamat}
-                  onChange={(e) => setAlamat(e.target.value)}
-                  placeholder="cth: RT 02"
-                  disabled={submitting}
-                />
-              </div>
-            </div>
-          )}
           {error && <p className="text-sm text-destructive">{error}</p>}
           <DialogFooter>
             <Button
@@ -516,8 +484,6 @@ function EditUserDialog({
   const [role, setRole] = useState<"warga" | "pengurus">(
     user.role === ROLES.PENGGURUS ? ROLES.PENGGURUS : ROLES.WARGA,
   );
-  const [alamat, setAlamat] = useState(user.alamat);
-  const [noRumah, setNoRumah] = useState(user.noRumah);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -526,8 +492,6 @@ function EditUserDialog({
       setName(user.name);
       setUsername(user.username);
       setRole(user.role === ROLES.PENGGURUS ? ROLES.PENGGURUS : ROLES.WARGA);
-      setAlamat(user.alamat);
-      setNoRumah(user.noRumah);
       setError(null);
     }
   }, [open, user]);
@@ -542,8 +506,6 @@ function EditUserDialog({
         name,
         username,
         role,
-        alamat: alamat.trim() || undefined,
-        noRumah: noRumah.trim() || undefined,
       });
       toast.success(`Data ${name.trim()} diperbarui.`);
       onOpenChange(false);
@@ -603,28 +565,6 @@ function EditUserDialog({
               </SelectContent>
             </Select>
           </div>
-          {role === ROLES.WARGA && (
-            <div className="grid grid-cols-2 gap-3">
-              <div className="grid gap-2">
-                <Label htmlFor="eu-rumah">No. rumah</Label>
-                <Input
-                  id="eu-rumah"
-                  value={noRumah}
-                  onChange={(e) => setNoRumah(e.target.value)}
-                  disabled={submitting}
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="eu-alamat">Alamat / RT</Label>
-                <Input
-                  id="eu-alamat"
-                  value={alamat}
-                  onChange={(e) => setAlamat(e.target.value)}
-                  disabled={submitting}
-                />
-              </div>
-            </div>
-          )}
           {error && <p className="text-sm text-destructive">{error}</p>}
           <DialogFooter>
             <Button
@@ -1788,8 +1728,6 @@ export default function Dashboard() {
       (filter === "semua" || r.status === filter) &&
       (!lowerQuery ||
         r.warga.name.toLowerCase().includes(lowerQuery) ||
-        (r.warga.noRumah || "").toLowerCase().includes(lowerQuery) ||
-        (r.warga.alamat || "").toLowerCase().includes(lowerQuery) ||
         (r.payment
           ? [
               formatDate(r.payment.recordedAt),
@@ -2796,7 +2734,6 @@ export default function Dashboard() {
                   <TableRow className="hover:bg-transparent">
                     <TableHead className="pl-4 sm:pl-6">Nama</TableHead>
                     <TableHead>Username</TableHead>
-                    <TableHead className="hidden sm:table-cell">Rumah</TableHead>
                     <TableHead>Peran</TableHead>
                     <TableHead className="text-right">Aksi</TableHead>
                   </TableRow>
@@ -2814,11 +2751,6 @@ export default function Dashboard() {
                       </TableCell>
                       <TableCell className="text-muted-foreground">
                         @{u.username}
-                      </TableCell>
-                      <TableCell className="hidden text-muted-foreground sm:table-cell">
-                        {u.role === ROLES.WARGA
-                          ? u.noRumah || u.alamat || "—"
-                          : "—"}
                       </TableCell>
                       <TableCell>
                         <RoleBadge role={u.role} />

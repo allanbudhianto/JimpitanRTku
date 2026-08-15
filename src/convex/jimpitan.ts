@@ -55,8 +55,6 @@ export const getOverview = query({
       .map((w) => ({
         _id: w._id,
         name: w.name ?? "Tanpa nama",
-        alamat: w.alamat ?? "",
-        noRumah: w.noRumah ?? "",
       }))
       .sort((a, b) => a.name.localeCompare(b.name, "id"));
 
