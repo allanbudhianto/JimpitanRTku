@@ -1069,8 +1069,6 @@ function render_qris(array $user, PDO $pdo): void
             . svg_icon('pencil', 16) . 'Atur QRIS</a></div>';
     }
 
-    echo '<div class="grid grid-2" style="align-items:start">';
-
     echo '<div class="card card-pad" style="max-width:520px">';
     if ($active && $payload !== '') {
         $qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=260x260&margin=8&data=' . rawurlencode($payload);
@@ -1099,40 +1097,6 @@ function render_qris(array $user, PDO $pdo): void
             . '<p class="muted" style="margin:4px 0 0">'
             . ($isAdmin ? 'Tempel string QRIS dari aplikasi bank / e-wallet Anda.' : 'Admin RT belum mengatur kode QRIS.') . '</p></div>';
     }
-    echo '</div>';
-
-    // Kontak pengurus & rekening kas — tampil di samping pembayaran QRIS
-    echo '<div style="display:flex;flex-direction:column;gap:14px">';
-    echo '<div class="section-head" style="margin-bottom:0"><h3 style="font-size:16px;font-weight:700;margin:0">Kontak & pembayaran</h3>'
-        . '<p class="muted">Hubungi pengurus atau transfer iuran ke rekening kas.</p></div>';
-
-    // Telepon Sari
-    echo '<div class="card card-pad">';
-    echo '<div class="bill-icon" style="background:var(--primary-softer);color:var(--primary-strong);margin-bottom:10px">' . svg_icon('phone', 18) . '</div>';
-    echo '<h3 style="font-size:15px;font-weight:700;margin:0">Sari</h3>';
-    echo '<p class="muted" style="margin:2px 0 12px">Bendahara / pengurus</p>';
-    echo '<a class="btn btn-outline btn-block" href="tel:085XXXXXXXXXXXX" style="justify-content:flex-start">' . svg_icon('phone', 14) . '<span style="font-weight:700">085XXXXXXXXXXXX</span></a>';
-    echo '</div>';
-
-    // Telepon Ina
-    echo '<div class="card card-pad">';
-    echo '<div class="bill-icon" style="background:var(--primary-softer);color:var(--primary-strong);margin-bottom:10px">' . svg_icon('phone', 18) . '</div>';
-    echo '<h3 style="font-size:15px;font-weight:700;margin:0">Ina</h3>';
-    echo '<p class="muted" style="margin:2px 0 12px">Pengurus</p>';
-    echo '<a class="btn btn-outline btn-block" href="tel:085XXXXXXXXXXXX" style="justify-content:flex-start">' . svg_icon('phone', 14) . '<span style="font-weight:700">085XXXXXXXXXXXX</span></a>';
-    echo '</div>';
-
-    // Rekening BRI
-    echo '<div class="card card-pad">';
-    echo '<div class="bill-icon" style="background:var(--success-bg);color:var(--success);margin-bottom:10px">' . svg_icon('wallet', 18) . '</div>';
-    echo '<h3 style="font-size:15px;font-weight:700;margin:0">Rekening BRI</h3>';
-    echo '<p class="muted" style="margin:2px 0 12px">Transfer iuran jimpitan</p>';
-    echo '<div class="info-box" style="font-size:15px;font-weight:800;letter-spacing:0.04em;font-variant-numeric:tabular-nums;text-align:center">5684 5654 4544 4544</div>';
-    echo '</div>';
-
-    echo '<p class="muted" style="margin:0;font-size:13px">Warga yang belum bisa membayar langsung dapat transfer ke rekening BRI lalu konfirmasi ke pengurus.</p>';
-    echo '</div>';
-
     echo '</div>';
 
     page_bottom();

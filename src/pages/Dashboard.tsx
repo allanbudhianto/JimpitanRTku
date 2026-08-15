@@ -83,6 +83,7 @@ import {
   Loader2,
   LogOut,
   Pencil,
+  Phone,
   Plus,
   QrCode,
   Search,
@@ -2113,6 +2114,61 @@ export default function Dashboard() {
         {qris && (
           <QrisDialog qris={qris} open={qrisOpen} onOpenChange={setQrisOpen} />
         )}
+
+        {/* Kontak & pembayaran */}
+        <Card className="mt-6 shadow-sm">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Phone className="size-4 text-primary" />
+              Kontak & pembayaran
+            </CardTitle>
+            <CardDescription>
+              Hubungi pengurus atau transfer iuran ke rekening kas.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="px-4 py-5 sm:px-6">
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="rounded-xl border bg-muted/30 p-4">
+                <p className="text-sm font-semibold">Sari</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  Bendahara / pengurus
+                </p>
+                <Button asChild variant="outline" size="sm" className="mt-3 w-full justify-start">
+                  <a href="tel:085XXXXXXXXXXXX">
+                    <Phone className="size-4" />
+                    085XXXXXXXXXXXX
+                  </a>
+                </Button>
+              </div>
+              <div className="rounded-xl border bg-muted/30 p-4">
+                <p className="text-sm font-semibold">Ina</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">Pengurus</p>
+                <Button asChild variant="outline" size="sm" className="mt-3 w-full justify-start">
+                  <a href="tel:085XXXXXXXXXXXX">
+                    <Phone className="size-4" />
+                    085XXXXXXXXXXXX
+                  </a>
+                </Button>
+              </div>
+              <div className="rounded-xl border bg-muted/30 p-4">
+                <p className="text-sm font-semibold">Rekening BRI</p>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  Transfer iuran jimpitan
+                </p>
+                <div className="mt-3 flex items-center justify-between gap-2 rounded-md bg-background px-3 py-2 ring-1 ring-border">
+                  <Landmark className="size-4 shrink-0 text-muted-foreground" />
+                  <span className="text-sm font-bold tabular-nums tracking-wide">
+                    5684 5654 4544 4544
+                  </span>
+                </div>
+              </div>
+            </div>
+            <p className="mt-3 text-xs text-muted-foreground">
+              Warga yang belum bisa membayar langsung dapat transfer ke rekening
+              BRI lalu konfirmasi ke pengurus.
+            </p>
+          </CardContent>
+        </Card>
 
         {/* Koneksi PlanetScale */}
         {canRecord && (
