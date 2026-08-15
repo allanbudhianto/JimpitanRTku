@@ -2549,7 +2549,36 @@ export default function Dashboard() {
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
-                          <span className="font-medium">{row.warga.name}</span>
+                          {canRecord ? (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setPayTarget({
+                                  warga: row.warga,
+                                  payment: row.payment,
+                                  saldoBefore: row.saldoBefore,
+                                })
+                              }
+                              className={cn(
+                                "inline-flex items-center gap-1 rounded-md font-medium transition-colors",
+                                "hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1",
+                              )}
+                              title={
+                                row.payment
+                                  ? `Edit pembayaran ${row.warga.name}`
+                                  : `Catat pembayaran ${row.warga.name}`
+                              }
+                            >
+                              {row.warga.name}
+                              {row.payment ? (
+                                <Pencil className="size-3 text-muted-foreground" />
+                              ) : (
+                                <Plus className="size-3 text-muted-foreground" />
+                              )}
+                            </button>
+                          ) : (
+                            <span className="font-medium">{row.warga.name}</span>
+                          )}
                           {row.warga._id === user._id && (
                             <Badge
                               variant="outline"
@@ -2842,3 +2871,4 @@ export default function Dashboard() {
     </div>
   );
 }
+

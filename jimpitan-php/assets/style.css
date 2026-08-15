@@ -295,6 +295,11 @@ table.table { width: 100%; border-collapse: collapse; font-size: 14px; min-width
 .table tbody tr:hover { background: var(--primary-softer); }
 .table .num { font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }
 .table .actions { display: inline-flex; gap: 6px; flex-wrap: wrap; }
+.table .name-link { color: inherit; display: inline-flex; align-items: center; gap: 4px; border-radius: 6px; }
+.table .name-link strong { font-weight: 600; }
+.table .name-link:hover { color: var(--primary); text-decoration: underline; }
+.table .name-link svg { color: var(--muted); }
+.table .name-link:hover svg { color: var(--primary); }
 .table .muted-cell { color: var(--muted); }
 .table-striped tbody tr:nth-child(even) { background: #fafcfa; }
 

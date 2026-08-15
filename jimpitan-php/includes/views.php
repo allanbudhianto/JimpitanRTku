@@ -513,7 +513,16 @@ function render_jimpitan(array $user, PDO $pdo): void
         $p = $r['payment'];
         echo '<tr>';
         echo '<td class="muted-cell">' . $no . '</td>';
-        echo '<td><strong>' . e($w['name']) . '</strong>' . ($w['alamat'] ? '<div class="muted-cell" style="font-size:12px">RT ' . e($w['alamat']) . '</div>' : '') . '</td>';
+        if ($manage) {
+            $payUrl = 'dashboard.php?view=jimpitan&form=pay&warga_id=' . (int) $w['id'] . '&month=' . $month;
+            $nameHtml = '<a class="name-link" href="' . $payUrl . '" title="' . ($p ? 'Edit pembayaran' : 'Catat pembayaran') . '">'
+                . '<strong>' . e($w['name']) . '</strong> '
+                . svg_icon($p ? 'pencil' : 'plus', 12)
+                . '</a>';
+        } else {
+            $nameHtml = '<strong>' . e($w['name']) . '</strong>';
+        }
+        echo '<td>' . $nameHtml . ($w['alamat'] ? '<div class="muted-cell" style="font-size:12px">RT ' . e($w['alamat']) . '</div>' : '') . '</td>';
         echo '<td class="muted-cell">' . e($w['no_rumah'] ?: '—') . '</td>';
         echo '<td class="num">' . ($p ? rupiah((int) $p['nominal']) : '<span class="muted-cell">—</span>') . '</td>';
         echo '<td>' . status_badge($r['status']) . '</td>';
