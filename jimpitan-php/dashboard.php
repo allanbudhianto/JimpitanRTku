@@ -16,7 +16,6 @@ $ALLOWED = [
     'warga'       => ['admin'],
     'qris'        => ['admin', 'pengurus', 'warga'],
     'rekap'       => ['admin', 'pengurus'],
-    'kontak'      => ['admin', 'pengurus', 'warga'],
     'akun'        => ['admin', 'pengurus', 'warga'],
 ];
 
@@ -53,9 +52,6 @@ switch ($view) {
         break;
     case 'rekap':
         render_rekap($user, $pdo);
-        break;
-    case 'kontak':
-        render_kontak($user, $pdo);
         break;
     case 'akun':
         render_akun($user, $pdo);

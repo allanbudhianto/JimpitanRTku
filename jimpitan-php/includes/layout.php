@@ -50,7 +50,6 @@ function nav_items(string $role): array
         'warga'       => ['Warga & Pengurus', 'users', ['admin']],
         'qris'        => ['QRIS', 'qr', ['admin', 'pengurus', 'warga']],
         'rekap'       => ['Rekap', 'db', ['admin', 'pengurus']],
-        'kontak'      => ['Kontak', 'phone', ['admin', 'pengurus', 'warga']],
         'akun'        => ['Akun', 'user', ['admin', 'pengurus', 'warga']],
     ];
     $items = [];
