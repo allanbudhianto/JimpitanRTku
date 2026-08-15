@@ -169,13 +169,6 @@ try {
           <li><?= htmlspecialchars($m) ?></li>
         <?php endforeach; ?>
       </ul>
-      <div class="info-box" style="margin:14px 0">
-        <strong>Akun bawaan</strong>
-        <div class="row"><span>Admin</span><span><code>admin</code> / <code>admin</code></span></div>
-        <div class="row"><span>Pengurus</span><span><code>sari</code> / <code>sari</code></span></div>
-        <div class="row"><span>Warga</span><span><code>sunaryo</code> / <code>sunaryo</code></span></div>
-        <div class="row"><span>Warga</span><span><code>galih</code> / <code>galih</code></span></div>
-      </div>
       <p class="muted" style="font-size:12.5px">
         Ganti semua password segera setelah login pertama (menu Akun; admin juga lewat menu Warga &amp; Pengurus).
         Untuk keamanan, hapus file <code>setup.php</code> setelah selesai.

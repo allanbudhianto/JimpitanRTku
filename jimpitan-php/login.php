@@ -72,14 +72,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
           <button class="btn btn-primary btn-lg btn-block" type="submit">Masuk</button>
         </div>
       </form>
-      <div style="padding:14px 26px;border-top:1px solid var(--border);background:var(--surface-2)">
-        <p class="muted" style="font-size:12.5px;margin:0;line-height:1.7">
-          Akun bawaan: <code>admin / admin</code> ·
-          <code>sari / sari</code> (pengurus) ·
-          <code>sunaryo / sunaryo</code> · <code>galih / galih</code> (warga).<br>
-          Warga &amp; pengurus baru didaftarkan oleh admin RT.
-        </p>
-      </div>
     </div>
 
     <p style="text-align:center;margin-top:18px">
