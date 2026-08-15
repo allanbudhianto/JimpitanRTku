@@ -118,6 +118,13 @@ function currentMonthKey() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
+/** Kontak bawaan — dipakai sebelum admin mengubah lewat tombol "Ubah". */
+const DEFAULT_KONTAK = {
+  sari: "085XXXXXXXXXXXX",
+  ina: "085XXXXXXXXXXXX",
+  bri: "5684 5654 4544 4544",
+};
+
 function shiftMonthKey(month: string, delta: number) {
   const [y, m] = month.split("-").map(Number);
   const d = new Date(y, m - 1 + delta, 1);
@@ -934,6 +941,115 @@ function QrisDialog({
   );
 }
 
+function KontakDialog({
+  kontak,
+  open,
+  onOpenChange,
+}: {
+  kontak: { sari: string | null; ina: string | null; bri: string | null } | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const updateKontak = useMutation(api.settings.updateKontak);
+  const [sari, setSari] = useState(kontak?.sari || DEFAULT_KONTAK.sari);
+  const [ina, setIna] = useState(kontak?.ina || DEFAULT_KONTAK.ina);
+  const [bri, setBri] = useState(kontak?.bri || DEFAULT_KONTAK.bri);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (open) {
+      setSari(kontak?.sari || DEFAULT_KONTAK.sari);
+      setIna(kontak?.ina || DEFAULT_KONTAK.ina);
+      setBri(kontak?.bri || DEFAULT_KONTAK.bri);
+      setError(null);
+    }
+  }, [open, kontak]);
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+    setError(null);
+    try {
+      await updateKontak({
+        sari: sari.trim() || undefined,
+        ina: ina.trim() || undefined,
+        bri: bri.trim() || undefined,
+      });
+      toast.success("Kontak disimpan.");
+      onOpenChange(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Gagal menyimpan kontak.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Ubah kontak & pembayaran</DialogTitle>
+          <DialogDescription>
+            Nomor telepon dan rekening yang tampil untuk semua pengguna di
+            dashboard.
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <div className="grid gap-2">
+            <Label htmlFor="ck-sari">Nomor Sari</Label>
+            <Input
+              id="ck-sari"
+              value={sari}
+              onChange={(e) => setSari(e.target.value)}
+              placeholder="cth: 081234567890"
+              disabled={submitting}
+            />
+            <p className="text-xs text-muted-foreground">
+              Tombol di kartu akan langsung menelepon nomor ini.
+            </p>
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="ck-ina">Nomor Ina</Label>
+            <Input
+              id="ck-ina"
+              value={ina}
+              onChange={(e) => setIna(e.target.value)}
+              placeholder="cth: 081234567890"
+              disabled={submitting}
+            />
+          </div>
+          <div className="grid gap-2">
+            <Label htmlFor="ck-bri">Rekening BRI</Label>
+            <Input
+              id="ck-bri"
+              value={bri}
+              onChange={(e) => setBri(e.target.value)}
+              placeholder="cth: 5684 5654 4544 4544"
+              disabled={submitting}
+            />
+          </div>
+          {error && <p className="text-sm text-destructive">{error}</p>}
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => onOpenChange(false)}
+              disabled={submitting}
+            >
+              Batal
+            </Button>
+            <Button type="submit" disabled={submitting}>
+              {submitting && <Loader2 className="animate-spin" />}
+              Simpan
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function AddExpenseDialog({
   open,
   onOpenChange,
@@ -1599,6 +1715,7 @@ export default function Dashboard() {
   const [deleteTarget, setDeleteTarget] = useState<ManagedUser | null>(null);
   const [changePwdOpen, setChangePwdOpen] = useState(false);
   const [qrisOpen, setQrisOpen] = useState(false);
+  const [kontakOpen, setKontakOpen] = useState(false);
   const [expenseOpen, setExpenseOpen] = useState(false);
   const [deleteExpenseTarget, setDeleteExpenseTarget] =
     useState<Expense | null>(null);
@@ -1690,6 +1807,10 @@ export default function Dashboard() {
     role ? undefined : "skip",
   );
   const qris = useQuery(api.settings.getQris, role ? undefined : "skip");
+  const kontak = useQuery(api.settings.getKontak, role ? undefined : "skip");
+  const sari = kontak?.sari || DEFAULT_KONTAK.sari;
+  const ina = kontak?.ina || DEFAULT_KONTAK.ina;
+  const bri = kontak?.bri || DEFAULT_KONTAK.bri;
   const expenses = useQuery(
     api.pengeluaran.listPengeluaran,
     role ? undefined : "skip",
@@ -2055,14 +2176,26 @@ export default function Dashboard() {
 
         {/* Kontak & pembayaran */}
         <Card className="mt-6 shadow-sm">
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Phone className="size-4 text-primary" />
-              Kontak & pembayaran
-            </CardTitle>
-            <CardDescription>
-              Hubungi pengurus atau transfer iuran ke rekening kas.
-            </CardDescription>
+          <CardHeader className="flex-row items-center justify-between gap-4 pb-3">
+            <div>
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Phone className="size-4 text-primary" />
+                Kontak & pembayaran
+              </CardTitle>
+              <CardDescription>
+                Hubungi pengurus atau transfer iuran ke rekening kas.
+              </CardDescription>
+            </div>
+            {isAdmin && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setKontakOpen(true)}
+              >
+                <Pencil className="size-4" />
+                Ubah
+              </Button>
+            )}
           </CardHeader>
           <CardContent className="px-4 py-5 sm:px-6">
             <div className="grid gap-3 sm:grid-cols-3">
@@ -2071,20 +2204,30 @@ export default function Dashboard() {
                 <p className="mt-0.5 text-xs text-muted-foreground">
                   Bendahara / pengurus
                 </p>
-                <Button asChild variant="outline" size="sm" className="mt-3 w-full justify-start">
-                  <a href="tel:085XXXXXXXXXXXX">
+                <Button
+                  asChild
+                  variant="outline"
+                  size="sm"
+                  className="mt-3 w-full justify-start"
+                >
+                  <a href={`tel:${sari}`}>
                     <Phone className="size-4" />
-                    085XXXXXXXXXXXX
+                    {sari}
                   </a>
                 </Button>
               </div>
               <div className="rounded-xl border bg-muted/30 p-4">
                 <p className="text-sm font-semibold">Ina</p>
                 <p className="mt-0.5 text-xs text-muted-foreground">Pengurus</p>
-                <Button asChild variant="outline" size="sm" className="mt-3 w-full justify-start">
-                  <a href="tel:085XXXXXXXXXXXX">
+                <Button
+                  asChild
+                  variant="outline"
+                  size="sm"
+                  className="mt-3 w-full justify-start"
+                >
+                  <a href={`tel:${ina}`}>
                     <Phone className="size-4" />
-                    085XXXXXXXXXXXX
+                    {ina}
                   </a>
                 </Button>
               </div>
@@ -2096,7 +2239,7 @@ export default function Dashboard() {
                 <div className="mt-3 flex items-center justify-between gap-2 rounded-md bg-background px-3 py-2 ring-1 ring-border">
                   <Landmark className="size-4 shrink-0 text-muted-foreground" />
                   <span className="text-sm font-bold tabular-nums tracking-wide">
-                    5684 5654 4544 4544
+                    {bri}
                   </span>
                 </div>
               </div>
@@ -2107,6 +2250,14 @@ export default function Dashboard() {
             </p>
           </CardContent>
         </Card>
+
+        {kontak && (
+          <KontakDialog
+            kontak={kontak}
+            open={kontakOpen}
+            onOpenChange={setKontakOpen}
+          />
+        )}
 
         {/* Koneksi PlanetScale */}
         {canRecord && (

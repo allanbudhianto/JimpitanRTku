@@ -60,10 +60,13 @@ const schema = defineSchema(
 
     // App settings (singleton documents keyed by `key`), e.g. QRIS payment.
     settings: defineTable({
-      key: v.string(), // "qris"
+      key: v.string(), // "qris" atau "kontak"
       qrisPayload: v.optional(v.string()), // QRIS merchant string (mulai "000201")
       qrisMerchantName: v.optional(v.string()), // merchant / atas nama
       qrisActive: v.optional(v.boolean()),
+      kontakSari: v.optional(v.string()), // nomor telepon Sari (bisa diubah admin)
+      kontakIna: v.optional(v.string()), // nomor telepon Ina
+      kontakBri: v.optional(v.string()), // rekening BRI kas
     }).index("key", ["key"]),
 
     // Cash outflows (pengeluaran kas RT), recorded by admin & pengurus.

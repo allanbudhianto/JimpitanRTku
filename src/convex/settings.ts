@@ -71,3 +71,66 @@ export const updateQris = mutation({
     return true;
   },
 });
+
+const KONTAK_KEY = "kontak";
+
+/**
+ * Contact info (Sari, Ina, rekening BRI), visible to every signed-in role so
+ * warga tahu cara menghubungi pengurus atau transfer iuran ke rekening kas.
+ */
+export const getKontak = query({
+  args: {},
+  handler: async (ctx) => {
+    const user = await getCurrentUser(ctx);
+    if (!user || !user.role) return null;
+
+    const doc = await ctx.db
+      .query("settings")
+      .withIndex("key", (q) => q.eq("key", KONTAK_KEY))
+      .first();
+    if (!doc) {
+      return { sari: null, ina: null, bri: null };
+    }
+    return {
+      sari: doc.kontakSari ?? null,
+      ina: doc.kontakIna ?? null,
+      bri: doc.kontakBri ?? null,
+    };
+  },
+});
+
+/** Admin edits the contact info shown to all roles (Sari, Ina, rekening BRI). */
+export const updateKontak = mutation({
+  args: {
+    sari: v.optional(v.string()),
+    ina: v.optional(v.string()),
+    bri: v.optional(v.string()),
+  },
+  handler: async (ctx, { sari, ina, bri }) => {
+    const user = await getCurrentUser(ctx);
+    if (!user || user.role !== ROLES.ADMIN) {
+      throw new Error("Hanya admin yang dapat mengubah kontak.");
+    }
+
+    const existing = await ctx.db
+      .query("settings")
+      .withIndex("key", (q) => q.eq("key", KONTAK_KEY))
+      .first();
+
+    const patch: {
+      kontakSari?: string;
+      kontakIna?: string;
+      kontakBri?: string;
+    } = {};
+    if (sari !== undefined) patch.kontakSari = sari.trim() || undefined;
+    if (ina !== undefined) patch.kontakIna = ina.trim() || undefined;
+    if (bri !== undefined) patch.kontakBri = bri.trim() || undefined;
+
+    if (existing) {
+      await ctx.db.patch(existing._id, patch);
+    } else {
+      await ctx.db.insert("settings", { key: KONTAK_KEY, ...patch });
+    }
+    return true;
+  },
+});
