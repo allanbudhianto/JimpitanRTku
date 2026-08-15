@@ -15,11 +15,11 @@ const jwks = JSON.stringify({
 });
 
 try {
-  console.log("Setting Convex Auth production environment variables with --prod...");
-  execSync(`npx convex env set JWT_PRIVATE_KEY "${privateKeyPem}" --prod`, { stdio: "inherit" });
-  execSync(`npx convex env set JWKS '${jwks}' --prod`, { stdio: "inherit" });
-  execSync(`npx convex env set SITE_URL "https://jimpitan-rtku-ivory.vercel.app" --prod`, { stdio: "inherit" });
-  console.log("Convex Auth keys successfully set on production!");
+  console.log("Setting Convex Auth environment variables...");
+  execSync(`npx convex env set JWT_PRIVATE_KEY "${privateKeyPem}"`, { stdio: "inherit" });
+  execSync(`npx convex env set JWKS '${jwks}'`, { stdio: "inherit" });
+  execSync(`npx convex env set SITE_URL "https://jimpitan-rtku-ivory.vercel.app"`, { stdio: "inherit" });
+  console.log("Convex Auth keys successfully configured!");
 } catch (e) {
-  console.warn("Could not set env via CLI with --prod:", e.message);
+  console.warn("Could not set env via CLI:", e.message);
 }

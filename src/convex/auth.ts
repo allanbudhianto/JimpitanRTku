@@ -4,6 +4,9 @@ import {
   createAccount,
   retrieveAccount,
 } from "@convex-dev/auth/server";
+import { hashSecret, verifySecret } from "./crypto";
+
+export { hashSecret, verifySecret };
 
 const ADMIN_USERNAME = "admin";
 const PROVIDER_ID = "password";
@@ -16,6 +19,10 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
   providers: [
     ConvexCredentials({
       id: PROVIDER_ID,
+      crypto: {
+        hashSecret: (secret) => hashSecret(secret),
+        verifySecret: (secret, hash) => verifySecret(hash, secret),
+      },
       authorize: async (credentials, ctx) => {
         const username = normalizeUsername(String(credentials.username ?? ""));
         const password = String(credentials.password ?? "");
@@ -44,7 +51,6 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
               });
               return { userId: user._id };
             } catch {
-              // If account was already created with another secret, throw clear error
               throw new Error("Akun admin sudah ada tetapi password tidak cocok.");
             }
           }
